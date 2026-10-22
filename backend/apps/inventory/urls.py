@@ -26,6 +26,32 @@ urlpatterns = [
         views.StockReversalView.as_view(),
         name="stock-movement-reverse",
     ),
+    path(f"{S}stock-counts/", views.StockCountListCreateView.as_view(), name="stock-counts"),
+    path(
+        f"{S}stock-counts/<uuid:count_id>/",
+        views.StockCountDetailView.as_view(),
+        name="stock-count-detail",
+    ),
+    path(
+        f"{S}stock-counts/<uuid:count_id>/items/",
+        views.StockCountItemsView.as_view(),
+        name="stock-count-items",
+    ),
+    path(
+        f"{S}stock-counts/<uuid:count_id>/submit/",
+        views.StockCountSubmitView.as_view(),
+        name="stock-count-submit",
+    ),
+    path(
+        f"{S}stock-counts/<uuid:count_id>/approve/",
+        views.StockCountApproveView.as_view(),
+        name="stock-count-approve",
+    ),
+    path(
+        f"{S}stock-counts/<uuid:count_id>/cancel/",
+        views.StockCountCancelView.as_view(),
+        name="stock-count-cancel",
+    ),
     path(f"{S}alerts/", views.AlertListView.as_view(), name="alerts"),
     path(f"{S}reports/summary/", views.SummaryReportView.as_view(), name="reports-summary"),
 ]

@@ -15,8 +15,8 @@ from rest_framework.exceptions import PermissionDenied
 from apps.shops.access import MANAGEMENT_ROLES
 from apps.sync.idempotency import IdempotentResult, run_idempotent, to_jsonable
 
+from . import counts, services
 from . import serializers as s
-from . import services
 from .models import Sale
 
 
@@ -93,6 +93,28 @@ def _reversal(m, user, d, target_id):
     )
 
 
+def _count_start(m, user, d, target_id):
+    return counts.start_stock_count(
+        shop=m.shop, user=user, shop_product_ids=d.get("shop_product_ids"), note=d["note"]
+    )
+
+
+def _count_record(m, user, d, target_id):
+    return counts.record_counts(shop=m.shop, user=user, count_id=target_id, entries=d["items"])
+
+
+def _count_submit(m, user, d, target_id):
+    return counts.submit_stock_count(shop=m.shop, user=user, count_id=target_id)
+
+
+def _count_approve(m, user, d, target_id):
+    return counts.approve_stock_count(shop=m.shop, user=user, count_id=target_id)
+
+
+def _count_cancel(m, user, d, target_id):
+    return counts.cancel_stock_count(shop=m.shop, user=user, count_id=target_id, reason=d["reason"])
+
+
 OPENING_STOCK = OperationSpec(
     "opening_stock", s.OpeningStockIn, s.MovementSerializer, _opening_stock,
     management_only=True, target_field="shop_product_id",
@@ -105,6 +127,25 @@ SALE = OperationSpec("sale", s.SaleIn, s.SaleOut, _sale)
 REVERSAL = OperationSpec(
     "stock_reversal", s.ReversalIn, s.MovementSerializer, _reversal,
     management_only=True, target_field="movement_id",
+)  # fmt: skip
+
+# Stock counts are online-only for now (not in SYNCABLE). Anyone in the shop can count;
+# only an owner/manager can approve or cancel.
+_COUNT_OUT = s.StockCountOut
+COUNT_START = OperationSpec("stock_count_start", s.StockCountStartIn, _COUNT_OUT, _count_start)
+COUNT_RECORD = OperationSpec(
+    "stock_count_record", s.StockCountRecordIn, _COUNT_OUT, _count_record, target_field="count_id"
+)  # fmt: skip
+COUNT_SUBMIT = OperationSpec(
+    "stock_count_submit", s.StockCountActionIn, _COUNT_OUT, _count_submit, target_field="count_id"
+)  # fmt: skip
+COUNT_APPROVE = OperationSpec(
+    "stock_count_approve", s.StockCountActionIn, _COUNT_OUT, _count_approve,
+    management_only=True, target_field="count_id",
+)  # fmt: skip
+COUNT_CANCEL = OperationSpec(
+    "stock_count_cancel", s.ReversalIn, _COUNT_OUT, _count_cancel,
+    management_only=True, target_field="count_id",
 )  # fmt: skip
 
 # Operations an offline client may submit through POST /shops/{id}/sync/.

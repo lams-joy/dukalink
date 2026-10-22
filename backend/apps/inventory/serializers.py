@@ -12,6 +12,8 @@ from .models import (
     Sale,
     SaleItem,
     ShopProduct,
+    StockCount,
+    StockCountItem,
     StockMovement,
 )
 
@@ -206,6 +208,74 @@ class LowStockAlertSerializer(serializers.ModelSerializer):
 
     def get_shortfall_base(self, obj) -> str:
         return str(obj.reorder_level_base - obj.quantity_base)
+
+
+# ------------------------------------------------------------------ stock counts
+class StockCountItemOut(serializers.ModelSerializer):
+    shop_product_id = serializers.UUIDField(read_only=True)
+    product_name = serializers.CharField(source="shop_product.product.name", read_only=True)
+    base_unit = serializers.CharField(source="shop_product.product.base_unit", read_only=True)
+    adjustment_movement_id = serializers.UUIDField(source="adjustment_id", read_only=True)
+
+    class Meta:
+        model = StockCountItem
+        fields = (
+            "id", "shop_product_id", "product_name", "base_unit", "expected_quantity_base",
+            "counted_quantity_base", "variance_base", "counted_at", "adjustment_movement_id",
+        )  # fmt: skip
+        read_only_fields = fields
+
+
+class StockCountOut(serializers.ModelSerializer):
+    items = StockCountItemOut(many=True, read_only=True)
+    counted_items = serializers.SerializerMethodField()
+    total_items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StockCount
+        fields = (
+            "id", "status", "note", "started_at", "submitted_at", "resolved_at",
+            "resolution_note", "total_items", "counted_items", "items",
+        )  # fmt: skip
+        read_only_fields = fields
+
+    def get_total_items(self, obj) -> int:
+        return len(obj.items.all())
+
+    def get_counted_items(self, obj) -> int:
+        return sum(1 for i in obj.items.all() if i.counted_quantity_base is not None)
+
+
+class StockCountStartIn(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    shop_product_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, allow_empty=False, max_length=500
+    )
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+
+
+class CountEntryIn(serializers.Serializer):
+    shop_product_id = serializers.UUIDField()
+    product_unit_id = serializers.UUIDField()
+    # Zero is allowed here (an empty shelf), unlike every other quantity in the API.
+    quantity = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=Decimal("0"))
+
+
+class StockCountRecordIn(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    items = CountEntryIn(many=True, allow_empty=False, max_length=500)
+
+    def validate_items(self, items):
+        ids = [i["shop_product_id"] for i in items]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Each product can appear only once per request.")
+        return items
+
+
+class StockCountActionIn(serializers.Serializer):
+    """Submit / approve: no body beyond the idempotency key."""
+
+    idempotency_key = serializers.UUIDField()
 
 
 MOVEMENT_TYPES = [c for c, _ in MovementType.choices]

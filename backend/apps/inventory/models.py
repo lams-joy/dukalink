@@ -199,3 +199,74 @@ class SaleItem(models.Model):
         StockMovement, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     reversed_at = models.DateTimeField(null=True, blank=True)
+
+
+class StockCount(models.Model):
+    """A physical count. It never changes stock by itself: only approval does."""
+
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress"
+        SUBMITTED = "submitted"
+        APPROVED = "approved"
+        CANCELLED = "cancelled"
+
+    OPEN_STATUSES = (Status.IN_PROGRESS, Status.SUBMITTED)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey("shops.Shop", on_delete=models.PROTECT, related_name="+")
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.IN_PROGRESS)
+    note = models.CharField(max_length=255, blank=True)
+    started_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    started_at = models.DateTimeField(default=timezone.now)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    # Who approved or cancelled it, when, and (for a cancellation) why.
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_note = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        constraints = [
+            # One open count per shop, so two counts can never fight over the same stock.
+            models.UniqueConstraint(
+                fields=["shop"],
+                condition=Q(status__in=["in_progress", "submitted"]),
+                name="one_open_stock_count_per_shop",
+            ),
+        ]
+        indexes = [models.Index(fields=["shop", "-started_at"])]
+
+    def __str__(self):
+        return f"count {self.pk} ({self.status})"
+
+
+class StockCountItem(models.Model):
+    """expected/counted/variance are base units and are kept for audit after approval."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    stock_count = models.ForeignKey(StockCount, on_delete=models.CASCADE, related_name="items")
+    shop_product = models.ForeignKey(ShopProduct, on_delete=models.PROTECT, related_name="+")
+    # Snapshot of the ledger balance at the moment the count was entered.
+    expected_quantity_base = models.DecimalField(null=True, blank=True, **QTY)
+    counted_quantity_base = models.DecimalField(null=True, blank=True, **QTY)
+    variance_base = models.DecimalField(null=True, blank=True, **QTY)  # counted - expected
+    counted_at = models.DateTimeField(null=True, blank=True)
+    # The adjustment written on approval (absent when there was no variance).
+    adjustment = models.OneToOneField(
+        StockMovement, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["stock_count", "shop_product"], name="uniq_product_per_stock_count"
+            ),
+            models.CheckConstraint(
+                condition=Q(counted_quantity_base__isnull=True) | Q(counted_quantity_base__gte=0),
+                name="stockcountitem_counted_non_negative",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.shop_product_id} in {self.stock_count_id}"

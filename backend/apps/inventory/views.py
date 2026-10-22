@@ -14,7 +14,7 @@ from . import operations as ops
 from . import reports
 from . import serializers as s
 from . import services
-from .models import ShopProduct, StockMovement
+from .models import ShopProduct, StockCount, StockMovement
 
 
 class ShopScopedMixin:
@@ -127,6 +127,68 @@ class StockReversalView(ShopScopedMixin, APIView):
 
     def post(self, request, shop_id, movement_id):
         return _execute(request, self.membership(), ops.REVERSAL, target_id=movement_id)
+
+
+# ------------------------------------------------------------------ stock counts
+def _counts_for(shop):
+    return StockCount.objects.filter(shop=shop).prefetch_related(
+        "items__shop_product__product"
+    )
+
+
+class StockCountListCreateView(ShopScopedMixin, ListAPIView):
+    """GET: history, newest first (?status=). POST: start a count (idempotency_key, optional
+    shop_product_ids, note)."""
+
+    serializer_class = s.StockCountOut
+
+    def get_queryset(self):
+        if self._fake:
+            return StockCount.objects.none()
+        qs = _counts_for(self.membership().shop)
+        wanted = self.request.query_params.get("status")
+        if wanted in StockCount.Status.values:
+            qs = qs.filter(status=wanted)
+        return qs.order_by("-started_at", "-id")
+
+    def post(self, request, shop_id):
+        return _execute(request, self.membership(), ops.COUNT_START)
+
+
+class StockCountDetailView(ShopScopedMixin, RetrieveAPIView):
+    serializer_class = s.StockCountOut
+    lookup_url_kwarg = "count_id"
+
+    def get_queryset(self):
+        if self._fake:
+            return StockCount.objects.none()
+        return _counts_for(self.membership().shop)
+
+
+class StockCountItemsView(ShopScopedMixin, APIView):
+    """PUT counted quantities: {idempotency_key, items: [{shop_product_id, product_unit_id, quantity}]}."""
+
+    def put(self, request, shop_id, count_id):
+        return _execute(request, self.membership(), ops.COUNT_RECORD, target_id=count_id)
+
+
+class StockCountSubmitView(ShopScopedMixin, APIView):
+    def post(self, request, shop_id, count_id):
+        return _execute(request, self.membership(), ops.COUNT_SUBMIT, target_id=count_id)
+
+
+class StockCountApproveView(ShopScopedMixin, APIView):
+    """Owner/manager. Applies every non-zero variance as an adjustment, all or nothing."""
+
+    def post(self, request, shop_id, count_id):
+        return _execute(request, self.membership(), ops.COUNT_APPROVE, target_id=count_id)
+
+
+class StockCountCancelView(ShopScopedMixin, APIView):
+    """Owner/manager. Reject or abandon an open count; stock is unchanged. Body: {idempotency_key, reason}."""
+
+    def post(self, request, shop_id, count_id):
+        return _execute(request, self.membership(), ops.COUNT_CANCEL, target_id=count_id)
 
 
 # ------------------------------------------------------------------ reads

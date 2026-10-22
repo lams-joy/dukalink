@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ShopProduct, StockMovement
+from .models import ShopProduct, StockCount, StockMovement
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
@@ -26,3 +26,9 @@ class ShopProductAdmin(ReadOnlyAdmin):
 class StockMovementAdmin(ReadOnlyAdmin):
     list_display = ("created_at", "shop_product", "movement_type", "quantity_base_delta")
     list_filter = ("movement_type",)
+
+
+@admin.register(StockCount)
+class StockCountAdmin(ReadOnlyAdmin):
+    list_display = ("started_at", "shop", "status", "resolved_at")
+    list_filter = ("status",)
