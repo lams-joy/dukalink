@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.db.models import Count, F, Sum
 
-from .models import PurchaseReceipt, Sale, SaleItem, ShopProduct
+from .models import PurchaseItem, SaleItem, ShopProduct
 
 MAX_SPAN_DAYS = 366
 DEFAULT_SPAN_DAYS = 30
@@ -53,15 +53,25 @@ def summary(shop, date_from, date_to, *, top_n: int = 5) -> dict:
         "out_of_stock_count": tracked.filter(quantity_base__lte=0).count(),
     }
 
-    sales = Sale.objects.filter(shop=shop, sold_at__gte=start, sold_at__lt=end)
-    sales_agg = sales.aggregate(count=Count("id"), total=Sum("total_amount"))
+    # Only live lines count: a reversed line is excluded, so a fully voided sale or receipt
+    # disappears from the totals and a partly reversed one counts only what still stands.
+    sale_lines = SaleItem.objects.filter(
+        sale__shop=shop, sale__sold_at__gte=start, sale__sold_at__lt=end, reversed_at__isnull=True
+    )
+    sales_agg = sale_lines.aggregate(count=Count("sale_id", distinct=True), total=Sum("line_total"))
 
-    purchases = PurchaseReceipt.objects.filter(shop=shop, received_at__gte=start, received_at__lt=end)
-    purchases_agg = purchases.aggregate(count=Count("id"), total=Sum("total_cost"))
+    purchase_lines = PurchaseItem.objects.filter(
+        receipt__shop=shop,
+        receipt__received_at__gte=start,
+        receipt__received_at__lt=end,
+        reversed_at__isnull=True,
+    )
+    purchases_agg = purchase_lines.aggregate(
+        count=Count("receipt_id", distinct=True), total=Sum("line_total")
+    )
 
     top = (
-        SaleItem.objects.filter(sale__in=sales)
-        .values("shop_product_id", "product_name_snapshot")
+        sale_lines.values("shop_product_id", "product_name_snapshot")
         .annotate(qty=Sum("quantity_base"), revenue=Sum("line_total"))
         .order_by("-revenue", "product_name_snapshot")[:top_n]
     )

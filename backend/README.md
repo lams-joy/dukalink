@@ -87,10 +87,15 @@ after a network failure is always safe. Sales synced this way are stored with
 Stock counts with variance approval, batch/expiry and expiry alerts, custom shop products,
 onboarding-complete, suppliers, orders, group buying, notifications, audit log.
 
+## Reversals
+
+`POST /api/v1/shops/{shop_id}/stock-movements/{movement_id}/reverse/` (owner/manager, reason required)
+adds a compensating movement and voids the matching sale/receipt line. Sales and receipts carry a
+derived `status` (`active`, `partially_reversed`, `voided`) and each line a `reversed_at`; the summary
+report counts only live lines. Sales/receipts recorded before migration `0002` have no line-to-movement
+link, so reversing them corrects stock but is not reflected in reports (no pilot data exists yet).
+
 ## Known limitations
 
-* **Reversed sales still appear in reports.** Reversing a movement corrects stock, but the
-  `Sale`/`PurchaseReceipt` header and its totals are not marked as voided, so the summary report
-  still counts them. Needs a voided/reversed status on the receipt/sale before pilot use.
 * **Alerts rank by absolute shortfall**, which is not comparable across units (kg vs pieces).
 * Shop and catalogue lists are plain/paginated inconsistently (shops: plain array).

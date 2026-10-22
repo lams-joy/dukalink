@@ -113,6 +113,21 @@ class StockMovement(models.Model):
         raise AppendOnlyError("Stock movements are append-only.")
 
 
+class DocumentStatus(models.TextChoices):
+    ACTIVE = "active"
+    PARTIALLY_REVERSED = "partially_reversed"
+    VOIDED = "voided"
+
+
+def _document_status(items) -> str:
+    """Derived from the lines, so it can never disagree with the ledger."""
+    lines = list(items.all())
+    reversed_count = sum(1 for i in lines if i.reversed_at is not None)
+    if not lines or reversed_count == 0:
+        return DocumentStatus.ACTIVE
+    return DocumentStatus.VOIDED if reversed_count == len(lines) else DocumentStatus.PARTIALLY_REVERSED
+
+
 class PurchaseReceipt(models.Model):
     """Goods actually received. A purchase order that has not arrived is NOT a receipt."""
 
@@ -124,6 +139,10 @@ class PurchaseReceipt(models.Model):
     total_cost = models.DecimalField(null=True, blank=True, **MONEY)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def status(self) -> str:
+        return _document_status(self.items)
 
 
 class PurchaseItem(models.Model):
@@ -138,6 +157,11 @@ class PurchaseItem(models.Model):
     quantity_base = models.DecimalField(**QTY)
     unit_cost = models.DecimalField(null=True, blank=True, **MONEY)
     line_total = models.DecimalField(null=True, blank=True, **MONEY)
+    # The ledger movement this line created; set when the line is voided by a reversal.
+    movement = models.OneToOneField(
+        StockMovement, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    reversed_at = models.DateTimeField(null=True, blank=True)
 
 
 class Sale(models.Model):
@@ -154,6 +178,10 @@ class Sale(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def status(self) -> str:
+        return _document_status(self.items)
+
 
 class SaleItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -167,3 +195,7 @@ class SaleItem(models.Model):
     quantity_base = models.DecimalField(**QTY)
     unit_price = models.DecimalField(**MONEY)
     line_total = models.DecimalField(**MONEY)
+    movement = models.OneToOneField(
+        StockMovement, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    reversed_at = models.DateTimeField(null=True, blank=True)

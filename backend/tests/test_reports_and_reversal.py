@@ -169,3 +169,85 @@ def test_cannot_reverse_another_shops_movement(other_user, other_shop, shop, own
     assert resp.json()["error"]["code"] == "movement_not_found"
     tracked_sugar.refresh_from_db()
     assert tracked_sugar.quantity_base == D("50")
+
+
+# ------------------------------------------------------------------ reversed documents leave reports
+def reverse(owner_client, shop, movement):
+    resp = owner_client.post(
+        reverse_url(shop, movement), {"idempotency_key": str(uuid4()), "reason": "mistake"}, format="json"
+    )
+    assert resp.status_code == 201, resp.content
+
+
+def test_reversed_sale_is_excluded_from_the_summary(owner_client, shop, owner, sugar, tracked_sugar):
+    stock_in(shop, owner, sugar)
+    sell(shop, owner, tracked_sugar, sugar, "1.5")  # 270.00
+    sell(shop, owner, tracked_sugar, sugar, "2")  # 360.00, will be voided
+    voided = tracked_sugar.movements.filter(movement_type=MovementType.SALE).latest("created_at")
+    reverse(owner_client, shop, voided)
+
+    data = owner_client.get(f"/api/v1/shops/{shop.pk}/reports/summary/").json()
+    assert data["sales"] == {"count": 1, "total_amount": "270.00"}
+    assert data["top_selling"][0]["quantity_base"] == "1.500000"
+    assert data["top_selling"][0]["revenue"] == "270.00"
+
+
+def test_reversed_receipt_is_excluded_from_the_summary(owner_client, shop, owner, sugar, tracked_sugar):
+    stock_in(shop, owner, sugar)
+    receipt_movement = tracked_sugar.movements.get(movement_type=MovementType.PURCHASE_RECEIPT)
+    reverse(owner_client, shop, receipt_movement)
+
+    data = owner_client.get(f"/api/v1/shops/{shop.pk}/reports/summary/").json()
+    assert data["purchases"] == {"count": 0, "total_cost": "0.00"}
+
+
+def test_partly_reversed_sale_counts_only_the_lines_that_stand(
+    owner_client, shop, owner, sugar, flour, tracked_sugar
+):
+    tracked_flour = services.track_product(shop=shop, product_id=flour.product.pk)
+    stock_in(shop, owner, sugar)
+    services.record_opening_stock(
+        shop=shop, user=owner, shop_product_id=tracked_flour.pk,
+        unit_id=flour.kg.pk, quantity=D("20"),
+    )  # fmt: skip
+    sale = services.record_sale(
+        shop=shop, user=owner,
+        items=[
+            {"shop_product_id": tracked_sugar.pk, "product_unit_id": sugar.kg.pk,
+             "quantity": D("1"), "unit_price": D("180.00")},
+            {"shop_product_id": tracked_flour.pk, "product_unit_id": flour.kg.pk,
+             "quantity": D("2"), "unit_price": D("100.00")},
+        ],
+    )  # fmt: skip
+    flour_line = sale.items.get(shop_product=tracked_flour)
+    reverse(owner_client, shop, flour_line.movement)
+
+    sale.refresh_from_db()
+    assert sale.status == "partially_reversed"
+    data = owner_client.get(f"/api/v1/shops/{shop.pk}/reports/summary/").json()
+    assert data["sales"] == {"count": 1, "total_amount": "180.00"}
+
+
+def test_sale_status_is_voided_once_every_line_is_reversed(
+    owner_client, shop, owner, sugar, tracked_sugar
+):
+    stock_in(shop, owner, sugar)
+    sale = sell(shop, owner, tracked_sugar, sugar, "1")
+    assert sale.status == "active"
+    reverse(owner_client, shop, sale.items.get().movement)
+
+    sale.refresh_from_db()
+    assert sale.status == "voided"
+    assert sale.items.get().reversed_at is not None
+
+
+def test_reversing_an_adjustment_does_not_touch_sales(owner_client, shop, owner, sugar, tracked_sugar):
+    stock_in(shop, owner, sugar)
+    sell(shop, owner, tracked_sugar, sugar, "1")
+    adj = services.record_adjustment(
+        shop=shop, user=owner, shop_product_id=tracked_sugar.pk, delta_base=D("-1"), reason="spill"
+    )
+    reverse(owner_client, shop, adj)
+
+    data = owner_client.get(f"/api/v1/shops/{shop.pk}/reports/summary/").json()
+    assert data["sales"]["count"] == 1

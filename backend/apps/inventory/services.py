@@ -153,19 +153,7 @@ def record_purchase_receipt(
         line_total = money(quantity * unit_cost) if unit_cost is not None else None
         if line_total is not None:
             total, any_cost = total + line_total, True
-        PurchaseItem.objects.create(
-            receipt=receipt,
-            shop_product=sp,
-            product_unit=unit,
-            product_name_snapshot=unit.product.name,
-            unit_name_snapshot=unit.unit_name,
-            unit_base_quantity_snapshot=unit.base_quantity,
-            quantity=quantity,
-            quantity_base=base,
-            unit_cost=unit_cost,
-            line_total=line_total,
-        )
-        _apply(
+        movement = _apply(
             sp,
             user=user,
             movement_type=MovementType.PURCHASE_RECEIPT,
@@ -178,6 +166,19 @@ def record_purchase_receipt(
             reference_type="purchase_receipt",
             reference_id=receipt.pk,
             note=f"Supplier: {supplier_name}"[:255] if supplier_name else "",
+        )
+        PurchaseItem.objects.create(
+            receipt=receipt,
+            shop_product=sp,
+            product_unit=unit,
+            product_name_snapshot=unit.product.name,
+            unit_name_snapshot=unit.unit_name,
+            unit_base_quantity_snapshot=unit.base_quantity,
+            quantity=quantity,
+            quantity_base=base,
+            unit_cost=unit_cost,
+            line_total=line_total,
+            movement=movement,
         )
     if any_cost:
         receipt.total_cost = total
@@ -207,6 +208,16 @@ def record_sale(
         base = to_base(unit, quantity)
         line_total = money(quantity * item["unit_price"])
         total += line_total
+        movement = _apply(
+            sp,
+            user=user,
+            movement_type=MovementType.SALE,
+            delta=-base,
+            unit=unit,
+            entered_quantity=quantity,
+            reference_type="sale",
+            reference_id=sale.pk,
+        )
         SaleItem.objects.create(
             sale=sale,
             shop_product=sp,
@@ -218,16 +229,7 @@ def record_sale(
             quantity_base=base,
             unit_price=item["unit_price"],
             line_total=line_total,
-        )
-        _apply(
-            sp,
-            user=user,
-            movement_type=MovementType.SALE,
-            delta=-base,
-            unit=unit,
-            entered_quantity=quantity,
-            reference_type="sale",
-            reference_id=sale.pk,
+            movement=movement,
         )
     sale.total_amount = total
     sale.save(update_fields=["total_amount"])
@@ -263,7 +265,7 @@ def reverse_movement(*, shop, user, movement_id, reason: str = ""):
     ).exists():
         raise StateConflict("This movement has already been reversed.")
     sp = _lock_shop_products(shop, [original.shop_product_id])[original.shop_product_id]
-    return _apply(
+    reversal = _apply(
         sp,
         user=user,
         movement_type=MovementType.REVERSAL,
@@ -272,3 +274,8 @@ def reverse_movement(*, shop, user, movement_id, reason: str = ""):
         reference_id=original.pk,
         note=reason[:255],
     )
+    # Void the sale/receipt line this movement belongs to, so reports stop counting it.
+    now = timezone.now()
+    SaleItem.objects.filter(movement=original).update(reversed_at=now)
+    PurchaseItem.objects.filter(movement=original).update(reversed_at=now)
+    return reversal

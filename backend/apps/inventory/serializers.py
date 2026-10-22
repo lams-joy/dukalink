@@ -73,17 +73,20 @@ class PurchaseItemOut(serializers.ModelSerializer):
         fields = (
             "id", "shop_product_id", "product_unit_id", "product_name_snapshot",
             "unit_name_snapshot", "unit_base_quantity_snapshot", "quantity", "quantity_base",
-            "unit_cost", "line_total",
+            "unit_cost", "line_total", "reversed_at",
         )  # fmt: skip
         read_only_fields = fields
 
 
 class PurchaseReceiptOut(serializers.ModelSerializer):
     items = PurchaseItemOut(many=True, read_only=True)
+    status = serializers.CharField(read_only=True)
 
     class Meta:
         model = PurchaseReceipt
-        fields = ("id", "supplier_name", "received_at", "currency", "total_cost", "items")
+        fields = (
+            "id", "supplier_name", "received_at", "currency", "total_cost", "status", "items",
+        )  # fmt: skip
         read_only_fields = fields
 
 
@@ -96,17 +99,20 @@ class SaleItemOut(serializers.ModelSerializer):
         fields = (
             "id", "shop_product_id", "product_unit_id", "product_name_snapshot",
             "unit_name_snapshot", "unit_base_quantity_snapshot", "quantity", "quantity_base",
-            "unit_price", "line_total",
+            "unit_price", "line_total", "reversed_at",
         )  # fmt: skip
         read_only_fields = fields
 
 
 class SaleOut(serializers.ModelSerializer):
     items = SaleItemOut(many=True, read_only=True)
+    status = serializers.CharField(read_only=True)
 
     class Meta:
         model = Sale
-        fields = ("id", "sold_at", "recording_source", "currency", "total_amount", "items")
+        fields = (
+            "id", "sold_at", "recording_source", "currency", "total_amount", "status", "items",
+        )  # fmt: skip
         read_only_fields = fields
 
 
