@@ -37,9 +37,12 @@ def diff(instance, new_values: dict) -> dict:
     return {"before": before, "after": after}
 
 
-def record(*, action, obj_type, obj_id, actor=None, shop=None, changes=None) -> AuditEvent:
+def record(
+    *, action, obj_type, obj_id, actor=None, shop=None, wholesaler=None, changes=None
+) -> AuditEvent:
     return AuditEvent.objects.create(
         shop=shop,
+        wholesaler=wholesaler,
         actor=actor if getattr(actor, "pk", None) else None,
         action=action,
         object_type=obj_type,

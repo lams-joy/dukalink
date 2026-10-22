@@ -21,13 +21,20 @@ class AuditEvent(models.Model):
     """One sensitive business action: who did what to which object, and the relevant
     before/after values. Append-only: rows are never edited or deleted through the ORM.
 
-    `shop` is empty only for platform-level events (e.g. supplier verification, later).
+    An event belongs to a shop, a wholesaler, or neither (platform-level).
     `actor` is empty for system actions, or if the account is later closed.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     shop = models.ForeignKey(
         "shops.Shop", null=True, blank=True, on_delete=models.PROTECT, related_name="audit_events"
+    )
+    wholesaler = models.ForeignKey(
+        "suppliers.Wholesaler",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="audit_events",
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
@@ -46,6 +53,7 @@ class AuditEvent(models.Model):
         indexes = [
             models.Index(fields=["shop", "-created_at"], name="audit_shop_created_idx"),
             models.Index(fields=["shop", "action"], name="audit_shop_action_idx"),
+            models.Index(fields=["wholesaler", "-created_at"], name="audit_whsl_created_idx"),
         ]
 
     def __str__(self):

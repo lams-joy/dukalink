@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.inventory",
     "apps.sync",
+    "apps.suppliers",
     "apps.audit",
 ]
 
@@ -152,6 +153,8 @@ SIMPLE_JWT = {
 # --- DukaLink business settings ---------------------------------------------
 DEFAULT_PHONE_COUNTRY_CODE = env("DEFAULT_PHONE_COUNTRY_CODE", "254")
 DEFAULT_CURRENCY = env("DEFAULT_CURRENCY", "KES")
+# Wholesalers must be verified by a platform admin before their offers go live.
+SUPPLIER_VERIFICATION_REQUIRED = env_bool("SUPPLIER_VERIFICATION_REQUIRED", True)
 # Provisional: negative-stock policy is an open decision (decisions.md).
 # False = a sale/decrease that would take stock below zero is rejected with 409.
 ALLOW_NEGATIVE_STOCK = env_bool("ALLOW_NEGATIVE_STOCK", False)
