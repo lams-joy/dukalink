@@ -69,7 +69,9 @@ class InventoryListCreateView(ShopScopedMixin, ListCreateAPIView):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.TrackProductIn(data=request.data)
         data.is_valid(raise_exception=True)
-        item = services.track_product(shop=membership.shop, **data.validated_data)
+        item = services.track_product(
+            shop=membership.shop, actor=request.user, **data.validated_data
+        )
         item = ShopProduct.objects.select_related("product").get(pk=item.pk)
         return Response(s.InventoryItemSerializer(item).data, status=status.HTTP_201_CREATED)
 
@@ -96,9 +98,9 @@ class InventorySettingsView(ShopScopedMixin, APIView):
             raise NotFound()
         data = s.InventorySettingsIn(data=request.data, partial=True)
         data.is_valid(raise_exception=True)
-        for field, value in data.validated_data.items():
-            setattr(item, field, value)
-        item.save(update_fields=[*data.validated_data.keys(), "updated_at"])
+        services.update_tracking_settings(
+            item=item, actor=request.user, values=data.validated_data
+        )
         return Response(s.InventoryItemSerializer(item).data)
 
 

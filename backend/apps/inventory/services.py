@@ -14,6 +14,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.audit import services as audit
 from apps.catalog.models import Product
 from apps.common.exceptions import (
     DomainError,
@@ -91,7 +92,7 @@ def _apply(
 
 # ---------------------------------------------------------------- tracking
 @transaction.atomic
-def track_product(*, shop, product_id, reorder_level_base=None) -> ShopProduct:
+def track_product(*, shop, product_id, reorder_level_base=None, actor=None) -> ShopProduct:
     try:
         # Shared catalogue entries, or this shop's own custom products - never another shop's.
         product = Product.objects.get(
@@ -101,12 +102,36 @@ def track_product(*, shop, product_id, reorder_level_base=None) -> ShopProduct:
         raise DomainError("Product not found.", code="product_not_found") from None
     if ShopProduct.objects.filter(shop=shop, product=product).exists():
         raise StateConflict("This product is already tracked in the shop.")
-    return ShopProduct.objects.create(
+    item = ShopProduct.objects.create(
         shop=shop,
         product=product,
         reorder_level_base=reorder_level_base,
         tracking_mode=shop.default_tracking_mode,
     )
+    audit.record(
+        action="product.tracked", obj_type="shop_product", obj_id=item.pk, actor=actor, shop=shop,
+        changes={"after": {
+            "product_id": product.pk, "tracking_mode": item.tracking_mode,
+            "reorder_level_base": reorder_level_base,
+        }},
+    )  # fmt: skip
+    return item
+
+
+@transaction.atomic
+def update_tracking_settings(*, item: ShopProduct, actor, values: dict) -> ShopProduct:
+    """Change a tracked product's reorder level / tracking mode, auditing what changed."""
+    changes = audit.diff(item, values)
+    if not changes["after"]:
+        return item
+    for field, value in values.items():
+        setattr(item, field, value)
+    item.save(update_fields=[*changes["after"].keys(), "updated_at"])
+    audit.record(
+        action="product.settings_updated", obj_type="shop_product", obj_id=item.pk,
+        actor=actor, shop=item.shop, changes=changes,
+    )  # fmt: skip
+    return item
 
 
 # ---------------------------------------------------------------- stock writes
@@ -251,9 +276,20 @@ def record_adjustment(*, shop, user, shop_product_id, delta_base: Decimal, reaso
     if not reason.strip():
         raise DomainError("A reason is required.", code="reason_required")
     sp = _lock_shop_products(shop, [shop_product_id])[shop_product_id]
-    return _apply(
+    before = sp.quantity_base
+    movement = _apply(
         sp, user=user, movement_type=MovementType.ADJUSTMENT, delta=delta_base, note=reason.strip()
     )
+    audit.record(
+        action="stock.adjustment", obj_type="stock_movement", obj_id=movement.pk, actor=user,
+        shop=shop,
+        changes={
+            "shop_product_id": sp.pk, "delta_base": delta_base,
+            "before": {"quantity_base": before}, "after": {"quantity_base": sp.quantity_base},
+            "reason": reason.strip()[:255],
+        },
+    )  # fmt: skip
+    return movement
 
 
 @transaction.atomic
@@ -272,6 +308,7 @@ def reverse_movement(*, shop, user, movement_id, reason: str = ""):
     ).exists():
         raise StateConflict("This movement has already been reversed.")
     sp = _lock_shop_products(shop, [original.shop_product_id])[original.shop_product_id]
+    before = sp.quantity_base
     reversal = _apply(
         sp,
         user=user,
@@ -285,4 +322,14 @@ def reverse_movement(*, shop, user, movement_id, reason: str = ""):
     now = timezone.now()
     SaleItem.objects.filter(movement=original).update(reversed_at=now)
     PurchaseItem.objects.filter(movement=original).update(reversed_at=now)
+    audit.record(
+        action="stock.reversal", obj_type="stock_movement", obj_id=reversal.pk, actor=user,
+        shop=shop,
+        changes={
+            "reverses_movement_id": original.pk, "shop_product_id": sp.pk,
+            "original_movement_type": original.movement_type,
+            "before": {"quantity_base": before}, "after": {"quantity_base": sp.quantity_base},
+            "reason": reason[:255],
+        },
+    )  # fmt: skip
     return reversal

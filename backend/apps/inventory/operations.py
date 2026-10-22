@@ -98,11 +98,12 @@ def _reversal(m, user, d, target_id):
 def _custom_product(m, user, d, target_id):
     product = catalog_services.create_custom_product(
         shop=m.shop, name=d["name"], base_unit=d["base_unit"], brand=d["brand"],
-        barcode=d["barcode"], category=d["category"], units=d["units"],
+        barcode=d["barcode"], category=d["category"], units=d["units"], actor=user,
     )  # fmt: skip
     if d["track"]:
         item = services.track_product(
-            shop=m.shop, product_id=product.pk, reorder_level_base=d.get("reorder_level_base")
+            shop=m.shop, product_id=product.pk, reorder_level_base=d.get("reorder_level_base"),
+            actor=user,
         )
         product.shop_product_id = item.pk
     return product
@@ -112,7 +113,7 @@ def _custom_unit(m, user, d, target_id):
     return catalog_services.add_custom_unit(
         shop=m.shop, product_id=target_id, unit_name=d["unit_name"],
         base_quantity=d["base_quantity"], is_purchase_unit=d["is_purchase_unit"],
-        is_sale_unit=d["is_sale_unit"],
+        is_sale_unit=d["is_sale_unit"], actor=user,
     )  # fmt: skip
 
 

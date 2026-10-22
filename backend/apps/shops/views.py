@@ -40,7 +40,7 @@ class ShopDetailView(APIView):
         shop = membership.shop
         serializer = ShopSerializer(shop, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        services.update_shop(shop=shop, actor=request.user, values=serializer.validated_data)
         shop.my_role = membership.role
         return Response(ShopSerializer(shop).data)
 
@@ -52,7 +52,9 @@ class ShopMemberCreateView(APIView):
         )
         serializer = AddMemberSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        new_member = services.add_member(shop=membership.shop, **serializer.validated_data)
+        new_member = services.add_member(
+            shop=membership.shop, actor=request.user, **serializer.validated_data
+        )
         return Response(MembershipSerializer(new_member).data, status=status.HTTP_201_CREATED)
 
 
@@ -61,6 +63,6 @@ class OnboardingCompleteView(APIView):
 
     def post(self, request, shop_id):
         membership = get_membership(request.user, shop_id, roles=MANAGEMENT_ROLES)
-        summary = services.complete_onboarding(membership.shop)
+        summary = services.complete_onboarding(membership.shop, actor=request.user)
         membership.shop.my_role = membership.role
         return Response({"shop": ShopSerializer(membership.shop).data, "onboarding": summary})

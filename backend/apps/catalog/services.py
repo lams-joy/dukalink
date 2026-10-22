@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django.db import IntegrityError, transaction
 
+from apps.audit import services as audit
 from apps.common.exceptions import CatalogueMatch, DomainError, InvalidUnit, StateConflict
 
 from .models import Product, ProductUnit
@@ -35,7 +36,7 @@ def _validate_unit(product: Product, unit_name: str, base_quantity: Decimal, exi
 
 @transaction.atomic
 def create_custom_product(
-    *, shop, name, base_unit, brand="", barcode="", category="", units=()
+    *, shop, name, base_unit, brand="", barcode="", category="", units=(), actor=None
 ) -> Product:
     """units: [{unit_name, base_quantity, is_purchase_unit, is_sale_unit}] in addition to the
     base unit, which is always created with a factor of 1."""
@@ -83,12 +84,21 @@ def create_custom_product(
             is_purchase_unit=spec.get("is_purchase_unit", True),
             is_sale_unit=spec.get("is_sale_unit", True),
         )
+    audit.record(
+        action="custom_product.created", obj_type="product", obj_id=product.pk, actor=actor,
+        shop=shop,
+        changes={"after": {
+            "name": product.name, "brand": product.brand, "base_unit": product.base_unit,
+            "extra_units": [s["unit_name"] for s in units],
+        }},
+    )  # fmt: skip
     return product
 
 
 @transaction.atomic
 def add_custom_unit(
-    *, shop, product_id, unit_name, base_quantity, is_purchase_unit=True, is_sale_unit=True
+    *, shop, product_id, unit_name, base_quantity, is_purchase_unit=True, is_sale_unit=True,
+    actor=None,
 ) -> Product:
     """Add a unit to a custom product. Existing transactions keep their own snapshots."""
     product = get_custom_product(shop, product_id)
@@ -97,5 +107,10 @@ def add_custom_unit(
     ProductUnit.objects.create(
         product=product, unit_name=name, base_quantity=base_quantity,
         is_purchase_unit=is_purchase_unit, is_sale_unit=is_sale_unit,
+    )  # fmt: skip
+    audit.record(
+        action="custom_product.unit_added", obj_type="product", obj_id=product.pk, actor=actor,
+        shop=shop,
+        changes={"after": {"unit_name": name, "base_quantity": base_quantity}},
     )  # fmt: skip
     return product

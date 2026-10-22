@@ -17,6 +17,7 @@ from decimal import Decimal
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from apps.audit import services as audit
 from apps.common.exceptions import DomainError, InvalidQuantity, ProductNotTracked, StateConflict
 
 from .models import MovementType, ShopProduct, StockCount, StockCountItem
@@ -151,6 +152,22 @@ def approve_stock_count(*, shop, user, count_id) -> StockCount:
     count.resolved_by = user
     count.resolved_at = timezone.now()
     count.save(update_fields=["status", "resolved_by", "resolved_at"])
+    adjusted = [i for i in counted if i.variance_base != 0]
+    audit.record(
+        action="stock_count.approved", obj_type="stock_count", obj_id=count.pk, actor=user,
+        shop=shop,
+        changes={
+            "products_counted": len(counted),
+            "adjustments": [
+                {
+                    "shop_product_id": i.shop_product_id, "movement_id": i.adjustment_id,
+                    "expected_base": i.expected_quantity_base,
+                    "counted_base": i.counted_quantity_base, "variance_base": i.variance_base,
+                }
+                for i in adjusted
+            ],
+        },
+    )  # fmt: skip
     return count
 
 
@@ -164,4 +181,8 @@ def cancel_stock_count(*, shop, user, count_id, reason: str) -> StockCount:
     count.resolved_at = timezone.now()
     count.resolution_note = reason[:255]
     count.save(update_fields=["status", "resolved_by", "resolved_at", "resolution_note"])
+    audit.record(
+        action="stock_count.cancelled", obj_type="stock_count", obj_id=count.pk, actor=user,
+        shop=shop, changes={"reason": reason[:255]},
+    )  # fmt: skip
     return count
