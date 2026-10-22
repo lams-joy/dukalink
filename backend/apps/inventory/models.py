@@ -1,0 +1,169 @@
+import uuid
+
+from django.conf import settings
+from django.db import models
+from django.db.models import Q
+from django.utils import timezone
+
+QTY = {"max_digits": 18, "decimal_places": 6}
+MONEY = {"max_digits": 14, "decimal_places": 2}
+
+
+class ShopProduct(models.Model):
+    """A product tracked by one shop. quantity_base is a CACHE of the movement ledger."""
+
+    class TrackingMode(models.TextChoices):
+        SIMPLE = "simple"
+        TRANSACTION = "transaction"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey("shops.Shop", on_delete=models.PROTECT, related_name="inventory")
+    product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, related_name="+")
+    quantity_base = models.DecimalField(default=0, **QTY)
+    reorder_level_base = models.DecimalField(null=True, blank=True, **QTY)
+    tracking_mode = models.CharField(
+        max_length=12, choices=TrackingMode.choices, default=TrackingMode.TRANSACTION
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["shop", "product"], name="uniq_product_per_shop"),
+            models.CheckConstraint(
+                condition=Q(reorder_level_base__isnull=True) | Q(reorder_level_base__gte=0),
+                name="shopproduct_reorder_level_non_negative",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.product_id}@{self.shop_id}"
+
+
+class MovementType(models.TextChoices):
+    OPENING_STOCK = "opening_stock"
+    PURCHASE_RECEIPT = "purchase_receipt"
+    SALE = "sale"
+    RETURN = "return"
+    DAMAGE = "damage"
+    ADJUSTMENT = "adjustment"
+    REVERSAL = "reversal"
+
+
+POSITIVE_ONLY = [MovementType.OPENING_STOCK, MovementType.PURCHASE_RECEIPT]
+NEGATIVE_ONLY = [MovementType.SALE, MovementType.DAMAGE]
+EITHER_SIGN = [MovementType.RETURN, MovementType.ADJUSTMENT, MovementType.REVERSAL]
+
+
+class AppendOnlyError(Exception):
+    pass
+
+
+class StockMovement(models.Model):
+    """Append-only ledger. Corrections are new movements (reversal/adjustment)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop_product = models.ForeignKey(ShopProduct, on_delete=models.PROTECT, related_name="movements")
+    movement_type = models.CharField(max_length=20, choices=MovementType.choices)
+    quantity_base_delta = models.DecimalField(**QTY)
+    balance_after_base = models.DecimalField(**QTY)
+    unit_cost_base = models.DecimalField(null=True, blank=True, **QTY)
+    # Snapshot of what the user entered (e.g. 1 x "50 kg sack" = 50), for audit/history.
+    entered_quantity = models.DecimalField(null=True, blank=True, **QTY)
+    entered_unit_name = models.CharField(max_length=50, blank=True)
+    entered_unit_base_quantity = models.DecimalField(null=True, blank=True, **QTY)
+    reference_type = models.CharField(max_length=40, blank=True)
+    reference_id = models.UUIDField(null=True, blank=True)
+    note = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["shop_product", "-created_at"]),
+            models.Index(fields=["reference_type", "reference_id"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(quantity_base_delta=0), name="movement_delta_non_zero"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(movement_type__in=POSITIVE_ONLY, quantity_base_delta__gt=0)
+                    | Q(movement_type__in=NEGATIVE_ONLY, quantity_base_delta__lt=0)
+                    | Q(movement_type__in=EITHER_SIGN)
+                ),
+                name="movement_sign_matches_type",
+            ),
+            # A movement can be reversed at most once (reversal.reference_id = original id).
+            models.UniqueConstraint(
+                fields=["reference_id"],
+                condition=Q(movement_type="reversal"),
+                name="movement_reversed_once",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise AppendOnlyError("Stock movements are append-only.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise AppendOnlyError("Stock movements are append-only.")
+
+
+class PurchaseReceipt(models.Model):
+    """Goods actually received. A purchase order that has not arrived is NOT a receipt."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey("shops.Shop", on_delete=models.PROTECT, related_name="+")
+    supplier_name = models.CharField(max_length=150, blank=True)
+    received_at = models.DateTimeField(default=timezone.now)
+    currency = models.CharField(max_length=3)
+    total_cost = models.DecimalField(null=True, blank=True, **MONEY)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class PurchaseItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    receipt = models.ForeignKey(PurchaseReceipt, on_delete=models.CASCADE, related_name="items")
+    shop_product = models.ForeignKey(ShopProduct, on_delete=models.PROTECT, related_name="+")
+    product_unit = models.ForeignKey("catalog.ProductUnit", on_delete=models.PROTECT, related_name="+")
+    product_name_snapshot = models.CharField(max_length=200)
+    unit_name_snapshot = models.CharField(max_length=50)
+    unit_base_quantity_snapshot = models.DecimalField(**QTY)
+    quantity = models.DecimalField(**QTY)
+    quantity_base = models.DecimalField(**QTY)
+    unit_cost = models.DecimalField(null=True, blank=True, **MONEY)
+    line_total = models.DecimalField(null=True, blank=True, **MONEY)
+
+
+class Sale(models.Model):
+    class Source(models.TextChoices):
+        ONLINE = "online"
+        OFFLINE = "offline"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey("shops.Shop", on_delete=models.PROTECT, related_name="+")
+    sold_at = models.DateTimeField(default=timezone.now)
+    recording_source = models.CharField(max_length=10, choices=Source.choices, default=Source.ONLINE)
+    currency = models.CharField(max_length=3)
+    total_amount = models.DecimalField(**MONEY)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class SaleItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="items")
+    shop_product = models.ForeignKey(ShopProduct, on_delete=models.PROTECT, related_name="+")
+    product_unit = models.ForeignKey("catalog.ProductUnit", on_delete=models.PROTECT, related_name="+")
+    product_name_snapshot = models.CharField(max_length=200)
+    unit_name_snapshot = models.CharField(max_length=50)
+    unit_base_quantity_snapshot = models.DecimalField(**QTY)
+    quantity = models.DecimalField(**QTY)
+    quantity_base = models.DecimalField(**QTY)
+    unit_price = models.DecimalField(**MONEY)
+    line_total = models.DecimalField(**MONEY)

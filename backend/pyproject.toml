@@ -1,0 +1,35 @@
+[project]
+name = "dukalink-backend"
+version = "0.1.0"
+description = "DukaLink API (Django + DRF)"
+requires-python = ">=3.12"
+dependencies = [
+    "Django>=5.2,<6.1",
+    "djangorestframework>=3.15",
+    "djangorestframework-simplejwt>=5.3",
+    "drf-spectacular>=0.27",
+    "psycopg[binary]>=3.2",
+    "gunicorn>=22.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-django>=4.8", "pytest-env>=1.1", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+include = ["config*", "apps*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"
+env = ["D:DJANGO_DEBUG=true", "D:AUTH_THROTTLE_RATE=1000/min"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ"]
+ignore = ["E501"]  # line length is the formatter's job
+exclude = ["*/migrations/*"]

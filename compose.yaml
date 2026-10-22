@@ -1,0 +1,35 @@
+# Local development stack: PostgreSQL + Django dev server.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: dukalink
+      POSTGRES_USER: dukalink
+      POSTGRES_PASSWORD: dukalink
+    ports:
+      - "5432:5432"
+    volumes:
+      - dukalink_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dukalink -d dukalink"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_DEBUG: "true"
+      DJANGO_SECRET_KEY: dev-only-not-a-secret
+      POSTGRES_HOST: db
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dukalink_pg:

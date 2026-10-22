@@ -1,0 +1,24 @@
+from django.urls import path
+
+from . import views
+
+S = "shops/<uuid:shop_id>/"
+
+urlpatterns = [
+    path(f"{S}inventory/", views.InventoryListCreateView.as_view(), name="inventory-list"),
+    path(f"{S}inventory/<uuid:item_id>/", views.InventoryDetailView.as_view(), name="inventory-detail"),
+    path(
+        f"{S}inventory/<uuid:item_id>/settings/",
+        views.InventorySettingsView.as_view(),
+        name="inventory-settings",
+    ),
+    path(
+        f"{S}inventory/<uuid:item_id>/opening-stock/",
+        views.OpeningStockView.as_view(),
+        name="inventory-opening-stock",
+    ),
+    path(f"{S}stock-adjustments/", views.StockAdjustmentView.as_view(), name="stock-adjustments"),
+    path(f"{S}purchase-receipts/", views.PurchaseReceiptView.as_view(), name="purchase-receipts"),
+    path(f"{S}sales/", views.SaleView.as_view(), name="sales"),
+    path(f"{S}stock-movements/", views.StockMovementListView.as_view(), name="stock-movements"),
+]
