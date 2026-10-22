@@ -63,8 +63,34 @@ ruff check --fix . && ruff format .     # run once, then keep clean
 * **Currency:** KES by default; one currency per deployment for now.
 * **Adding members:** only people who already have an account can be added.
 
+## Offline sync
+
+`POST /api/v1/shops/{shop_id}/sync/` takes queued operations (oldest first), max 100 per batch:
+
+```json
+{"operations": [{"operation_id": "<uuid>", "operation_type": "sale", "payload": {"items": []}}]}
+```
+
+Supported `operation_type`: `sale`, `purchase_receipt`, `stock_adjustment`, `opening_stock`
+(payload includes `shop_product_id`), `stock_reversal` (payload includes `movement_id`).
+`operation_id` is the idempotency key, so do not put `idempotency_key` in the payload.
+
+One result per operation, in order: `accepted`, `duplicate` (already applied, original result
+returned), `conflict` (clashes with current state, e.g. `insufficient_stock`; client must
+reconcile), or `rejected` (invalid/not permitted; nothing recorded, safe to fix and resend).
+Operations are independent, so one conflict does not block the rest. Resending a whole batch
+after a network failure is always safe. Sales synced this way are stored with
+`recording_source = "offline"`.
+
 ## Not built yet
 
-Stock counts, low-stock alert endpoint, reports, batch/expiry, the `/shops/{id}/sync/` batch
-endpoint, a reversal endpoint (the service exists), custom shop products, onboarding-complete,
-suppliers, orders, group buying, notifications, audit log.
+Stock counts with variance approval, batch/expiry and expiry alerts, custom shop products,
+onboarding-complete, suppliers, orders, group buying, notifications, audit log.
+
+## Known limitations
+
+* **Reversed sales still appear in reports.** Reversing a movement corrects stock, but the
+  `Sale`/`PurchaseReceipt` header and its totals are not marked as voided, so the summary report
+  still counts them. Needs a voided/reversed status on the receipt/sale before pilot use.
+* **Alerts rank by absolute shortfall**, which is not comparable across units (kg vs pieces).
+* Shop and catalogue lists are plain/paginated inconsistently (shops: plain array).

@@ -21,4 +21,11 @@ urlpatterns = [
     path(f"{S}purchase-receipts/", views.PurchaseReceiptView.as_view(), name="purchase-receipts"),
     path(f"{S}sales/", views.SaleView.as_view(), name="sales"),
     path(f"{S}stock-movements/", views.StockMovementListView.as_view(), name="stock-movements"),
+    path(
+        f"{S}stock-movements/<uuid:movement_id>/reverse/",
+        views.StockReversalView.as_view(),
+        name="stock-movement-reverse",
+    ),
+    path(f"{S}alerts/", views.AlertListView.as_view(), name="alerts"),
+    path(f"{S}reports/summary/", views.SummaryReportView.as_view(), name="reports-summary"),
 ]

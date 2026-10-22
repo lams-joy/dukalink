@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from django.db.models import F, Q
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveAPIView
@@ -8,8 +9,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.shops.access import MANAGEMENT_ROLES, get_membership
-from apps.sync.idempotency import run_idempotent, to_jsonable
 
+from . import operations as ops
+from . import reports
 from . import serializers as s
 from . import services
 from .models import ShopProduct, StockMovement
@@ -26,24 +28,17 @@ class ShopScopedMixin:
         return getattr(self, "swagger_fake_view", False)
 
 
-def _idempotent_write(request, membership, operation_type, input_cls, build, output_cls):
-    """Validate -> run once per idempotency key -> return the stored result on replays."""
-    serializer = input_cls(data=request.data)
+def _execute(request, membership, spec: ops.OperationSpec, target_id=None):
+    """Authorise -> validate -> run once per idempotency key; replays return the stored result."""
+    ops.authorise(spec, membership)
+    serializer = spec.input_cls(data=request.data)
     serializer.is_valid(raise_exception=True)
-    data = dict(serializer.validated_data)
-    key = data.pop("idempotency_key")
-
-    def handler():
-        obj = build(data)
-        return status.HTTP_201_CREATED, output_cls(obj).data
-
-    result = run_idempotent(
+    result = ops.run_operation(
+        spec,
         user=request.user,
-        shop=membership.shop,
-        operation_type=operation_type,
-        operation_id=key,
-        payload=to_jsonable(data),
-        handler=handler,
+        membership=membership,
+        data=dict(serializer.validated_data),
+        target_id=target_id,
     )
     response = Response(result.body, status=result.status)
     if result.replayed:
@@ -64,7 +59,9 @@ class InventoryListCreateView(ShopScopedMixin, ListCreateAPIView):
         if q:
             qs = qs.filter(Q(product__name__icontains=q) | Q(product__brand__icontains=q))
         if self.request.query_params.get("low_stock") == "true":
-            qs = qs.filter(reorder_level_base__isnull=False, quantity_base__lte=F("reorder_level_base"))
+            qs = qs.filter(
+                reorder_level_base__isnull=False, quantity_base__lte=F("reorder_level_base")
+            )
         return qs.order_by("product__name")
 
     def create(self, request, *args, **kwargs):
@@ -89,9 +86,11 @@ class InventoryDetailView(ShopScopedMixin, RetrieveAPIView):
 class InventorySettingsView(ShopScopedMixin, APIView):
     def patch(self, request, shop_id, item_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
-        item = ShopProduct.objects.select_related("product").filter(
-            shop=membership.shop, pk=item_id
-        ).first()
+        item = (
+            ShopProduct.objects.select_related("product")
+            .filter(shop=membership.shop, pk=item_id)
+            .first()
+        )
         if item is None:
             raise NotFound()
         data = s.InventorySettingsIn(data=request.data, partial=True)
@@ -102,66 +101,35 @@ class InventorySettingsView(ShopScopedMixin, APIView):
         return Response(s.InventoryItemSerializer(item).data)
 
 
+# ------------------------------------------------------------------ writes
 class OpeningStockView(ShopScopedMixin, APIView):
     def post(self, request, shop_id, item_id):
-        membership = self.membership(roles=MANAGEMENT_ROLES)
-
-        def build(data):
-            return services.record_opening_stock(
-                shop=membership.shop, user=request.user, shop_product_id=item_id,
-                unit_id=data["product_unit_id"], quantity=data["quantity"],
-                unit_cost=data.get("unit_cost"), note=data["note"],
-            )  # fmt: skip
-
-        return _idempotent_write(
-            request, membership, f"opening_stock:{item_id}", s.OpeningStockIn, build, s.MovementSerializer
-        )
+        return _execute(request, self.membership(), ops.OPENING_STOCK, target_id=item_id)
 
 
 class StockAdjustmentView(ShopScopedMixin, APIView):
     def post(self, request, shop_id):
-        membership = self.membership(roles=MANAGEMENT_ROLES)
-
-        def build(data):
-            return services.record_adjustment(
-                shop=membership.shop, user=request.user,
-                shop_product_id=data["shop_product_id"],
-                delta_base=data["quantity_base_delta"], reason=data["reason"],
-            )  # fmt: skip
-
-        return _idempotent_write(
-            request, membership, "stock_adjustment", s.AdjustmentIn, build, s.MovementSerializer
-        )
+        return _execute(request, self.membership(), ops.ADJUSTMENT)
 
 
 class PurchaseReceiptView(ShopScopedMixin, APIView):
     def post(self, request, shop_id):
-        membership = self.membership()
-
-        def build(data):
-            return services.record_purchase_receipt(
-                shop=membership.shop, user=request.user, items=data["items"],
-                supplier_name=data["supplier_name"], received_at=data.get("received_at"),
-            )  # fmt: skip
-
-        return _idempotent_write(
-            request, membership, "purchase_receipt", s.PurchaseReceiptIn, build, s.PurchaseReceiptOut
-        )
+        return _execute(request, self.membership(), ops.RECEIPT)
 
 
 class SaleView(ShopScopedMixin, APIView):
     def post(self, request, shop_id):
-        membership = self.membership()
-
-        def build(data):
-            return services.record_sale(
-                shop=membership.shop, user=request.user, items=data["items"],
-                sold_at=data.get("sold_at"), recording_source=data["recording_source"],
-            )  # fmt: skip
-
-        return _idempotent_write(request, membership, "sale", s.SaleIn, build, s.SaleOut)
+        return _execute(request, self.membership(), ops.SALE)
 
 
+class StockReversalView(ShopScopedMixin, APIView):
+    """Compensate a movement with an equal and opposite one. Body: {idempotency_key, reason}."""
+
+    def post(self, request, shop_id, movement_id):
+        return _execute(request, self.membership(), ops.REVERSAL, target_id=movement_id)
+
+
+# ------------------------------------------------------------------ reads
 class StockMovementListView(ShopScopedMixin, ListAPIView):
     """History. Filters: ?shop_product_id=<uuid>&movement_type=<type>"""
 
@@ -182,3 +150,51 @@ class StockMovementListView(ShopScopedMixin, ListAPIView):
         if params.get("movement_type") in s.MOVEMENT_TYPES:
             qs = qs.filter(movement_type=params["movement_type"])
         return qs.order_by("-created_at", "-id")
+
+
+class AlertListView(ShopScopedMixin, ListAPIView):
+    """Low-stock alerts, largest shortfall first. (Expiry alerts arrive with batch tracking.)"""
+
+    serializer_class = s.LowStockAlertSerializer
+
+    def get_queryset(self):
+        if self._fake:
+            return ShopProduct.objects.none()
+        return reports.low_stock_queryset(self.membership().shop)
+
+
+class SummaryQuerySerializer(drf_serializers.Serializer):
+    date_from = drf_serializers.DateField(required=False)
+    date_to = drf_serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        start, end = attrs.get("date_from"), attrs.get("date_to")
+        if start and end:
+            if start > end:
+                raise drf_serializers.ValidationError("`from` must not be after `to`.")
+            if (end - start).days + 1 > reports.MAX_SPAN_DAYS:
+                raise drf_serializers.ValidationError(
+                    f"The period cannot exceed {reports.MAX_SPAN_DAYS} days."
+                )
+        return attrs
+
+
+class SummaryReportView(ShopScopedMixin, APIView):
+    """GET ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive, shop-local dates; default last 30 days)."""
+
+    def get(self, request, shop_id):
+        membership = self.membership()
+        raw = {}
+        if request.query_params.get("from"):
+            raw["date_from"] = request.query_params["from"]
+        if request.query_params.get("to"):
+            raw["date_to"] = request.query_params["to"]
+        params = SummaryQuerySerializer(data=raw)
+        params.is_valid(raise_exception=True)
+        return Response(
+            reports.summary(
+                membership.shop,
+                params.validated_data.get("date_from"),
+                params.validated_data.get("date_to"),
+            )
+        )

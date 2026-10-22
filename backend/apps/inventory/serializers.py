@@ -175,4 +175,31 @@ class SaleIn(serializers.Serializer):
     items = SaleItemIn(many=True, allow_empty=False, max_length=200)
 
 
+class ReversalIn(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    reason = serializers.CharField(max_length=255)  # required, non-blank: this is an audit trail
+
+
+class LowStockAlertSerializer(serializers.ModelSerializer):
+    type = serializers.SerializerMethodField()
+    shop_product_id = serializers.UUIDField(source="id", read_only=True)
+    product_name = serializers.CharField(source="product.name", read_only=True)
+    base_unit = serializers.CharField(source="product.base_unit", read_only=True)
+    shortfall_base = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShopProduct
+        fields = (
+            "type", "shop_product_id", "product_name", "base_unit",
+            "quantity_base", "reorder_level_base", "shortfall_base",
+        )  # fmt: skip
+        read_only_fields = fields
+
+    def get_type(self, obj) -> str:
+        return "low_stock"
+
+    def get_shortfall_base(self, obj) -> str:
+        return str(obj.reorder_level_base - obj.quantity_base)
+
+
 MOVEMENT_TYPES = [c for c, _ in MovementType.choices]
