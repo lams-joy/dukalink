@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.catalog.models import Product
@@ -92,13 +93,19 @@ def _apply(
 @transaction.atomic
 def track_product(*, shop, product_id, reorder_level_base=None) -> ShopProduct:
     try:
-        product = Product.objects.get(pk=product_id, is_active=True)
+        # Shared catalogue entries, or this shop's own custom products - never another shop's.
+        product = Product.objects.get(
+            Q(owner_shop__isnull=True) | Q(owner_shop=shop), pk=product_id, is_active=True
+        )
     except Product.DoesNotExist:
         raise DomainError("Product not found.", code="product_not_found") from None
     if ShopProduct.objects.filter(shop=shop, product=product).exists():
         raise StateConflict("This product is already tracked in the shop.")
     return ShopProduct.objects.create(
-        shop=shop, product=product, reorder_level_base=reorder_level_base
+        shop=shop,
+        product=product,
+        reorder_level_base=reorder_level_base,
+        tracking_mode=shop.default_tracking_mode,
     )
 
 

@@ -26,6 +26,12 @@ urlpatterns = [
         views.StockReversalView.as_view(),
         name="stock-movement-reverse",
     ),
+    path(f"{S}products/", views.CustomProductListCreateView.as_view(), name="custom-products"),
+    path(
+        f"{S}products/<uuid:product_id>/units/",
+        views.CustomProductUnitView.as_view(),
+        name="custom-product-units",
+    ),
     path(f"{S}stock-counts/", views.StockCountListCreateView.as_view(), name="stock-counts"),
     path(
         f"{S}stock-counts/<uuid:count_id>/",

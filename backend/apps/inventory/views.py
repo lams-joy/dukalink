@@ -8,12 +8,13 @@ from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveAPIV
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.catalog.models import Product
+from apps.catalog.serializers import CustomProductSerializer
 from apps.shops.access import MANAGEMENT_ROLES, get_membership
 
 from . import operations as ops
-from . import reports
+from . import reports, services
 from . import serializers as s
-from . import services
 from .models import ShopProduct, StockCount, StockMovement
 
 
@@ -127,6 +128,34 @@ class StockReversalView(ShopScopedMixin, APIView):
 
     def post(self, request, shop_id, movement_id):
         return _execute(request, self.membership(), ops.REVERSAL, target_id=movement_id)
+
+
+# ------------------------------------------------------------------ custom products
+class CustomProductListCreateView(ShopScopedMixin, ListAPIView):
+    """GET: this shop's own products (?q=). POST: create one (owner/manager) - optionally
+    tracking it straight away. Shared-catalogue products are listed at /catalog/products/."""
+
+    serializer_class = CustomProductSerializer
+
+    def get_queryset(self):
+        if self._fake:
+            return Product.objects.none()
+        shop = self.membership().shop
+        qs = Product.objects.filter(owner_shop=shop, is_active=True).prefetch_related("units")
+        q = self.request.query_params.get("q", "").strip()
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(brand__icontains=q) | Q(barcode=q))
+        return qs.order_by("name")
+
+    def post(self, request, shop_id):
+        return _execute(request, self.membership(), ops.CUSTOM_PRODUCT)
+
+
+class CustomProductUnitView(ShopScopedMixin, APIView):
+    """Add a unit (e.g. "carton of 24" = 24 piece) to one of this shop's custom products."""
+
+    def post(self, request, shop_id, product_id):
+        return _execute(request, self.membership(), ops.CUSTOM_UNIT, target_id=product_id)
 
 
 # ------------------------------------------------------------------ stock counts

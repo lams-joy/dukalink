@@ -38,6 +38,12 @@ class StateConflict(DomainError):
     default_detail = "The request conflicts with the current state."
 
 
+class CatalogueMatch(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+    default_code = "matches_catalogue_product"
+    default_detail = "That product already exists in the shared catalogue."
+
+
 class IdempotencyConflict(DomainError):
     status_code = status.HTTP_409_CONFLICT
     default_code = "idempotency_conflict"

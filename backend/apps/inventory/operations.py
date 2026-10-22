@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from rest_framework import serializers, status
 from rest_framework.exceptions import PermissionDenied
 
+from apps.catalog import services as catalog_services
+from apps.catalog.serializers import CustomProductSerializer
 from apps.shops.access import MANAGEMENT_ROLES
 from apps.sync.idempotency import IdempotentResult, run_idempotent, to_jsonable
 
@@ -93,6 +95,27 @@ def _reversal(m, user, d, target_id):
     )
 
 
+def _custom_product(m, user, d, target_id):
+    product = catalog_services.create_custom_product(
+        shop=m.shop, name=d["name"], base_unit=d["base_unit"], brand=d["brand"],
+        barcode=d["barcode"], category=d["category"], units=d["units"],
+    )  # fmt: skip
+    if d["track"]:
+        item = services.track_product(
+            shop=m.shop, product_id=product.pk, reorder_level_base=d.get("reorder_level_base")
+        )
+        product.shop_product_id = item.pk
+    return product
+
+
+def _custom_unit(m, user, d, target_id):
+    return catalog_services.add_custom_unit(
+        shop=m.shop, product_id=target_id, unit_name=d["unit_name"],
+        base_quantity=d["base_quantity"], is_purchase_unit=d["is_purchase_unit"],
+        is_sale_unit=d["is_sale_unit"],
+    )  # fmt: skip
+
+
 def _count_start(m, user, d, target_id):
     return counts.start_stock_count(
         shop=m.shop, user=user, shop_product_ids=d.get("shop_product_ids"), note=d["note"]
@@ -127,6 +150,16 @@ SALE = OperationSpec("sale", s.SaleIn, s.SaleOut, _sale)
 REVERSAL = OperationSpec(
     "stock_reversal", s.ReversalIn, s.MovementSerializer, _reversal,
     management_only=True, target_field="movement_id",
+)  # fmt: skip
+
+# Custom products change the shop's catalogue, so owner/manager only. Online-only for now.
+CUSTOM_PRODUCT = OperationSpec(
+    "custom_product", s.CustomProductIn, CustomProductSerializer, _custom_product,
+    management_only=True,
+)  # fmt: skip
+CUSTOM_UNIT = OperationSpec(
+    "custom_product_unit", s.AddUnitIn, CustomProductSerializer, _custom_unit,
+    management_only=True, target_field="product_id",
 )  # fmt: skip
 
 # Stock counts are online-only for now (not in SYNCABLE). Anyone in the shop can count;

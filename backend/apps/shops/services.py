@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from apps.accounts.phone import normalise_phone
 from apps.common.exceptions import DomainError, StateConflict
@@ -39,3 +40,27 @@ def add_member(*, shop: Shop, phone_number: str, role: str) -> ShopMembership:
     membership.role = role
     membership.save(update_fields=["status", "role"])
     return membership
+
+
+@transaction.atomic
+def complete_onboarding(shop: Shop) -> dict:
+    """Mark setup finished. Needs at least one tracked product; opening stock is NOT required
+    (unknown quantities are skipped, never invented). Safe to call twice: the first completion
+    time is kept. Returns a summary of what is still missing."""
+    from apps.inventory.models import ShopProduct  # local import: inventory depends on shops
+
+    tracked = ShopProduct.objects.filter(shop=shop, is_active=True)
+    total = tracked.count()
+    if total == 0:
+        raise DomainError(
+            "Add at least one product before finishing setup.", code="no_tracked_products"
+        )
+    if shop.onboarding_completed_at is None:
+        shop.onboarding_completed_at = timezone.now()
+        shop.save(update_fields=["onboarding_completed_at", "updated_at"])
+    awaiting = tracked.filter(movements__isnull=True).count()
+    return {
+        "tracked_products": total,
+        "with_opening_stock": total - awaiting,
+        "awaiting_opening_stock": awaiting,
+    }

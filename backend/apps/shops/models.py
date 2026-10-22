@@ -5,12 +5,21 @@ from django.db import models
 
 
 class Shop(models.Model):
+    class RecordingPreference(models.TextChoices):
+        SIMPLE = "simple"  # quick stock adjustments
+        TRANSACTION = "transaction"  # receipts and sales
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=150)
     location_text = models.CharField(max_length=255, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     timezone = models.CharField(max_length=64, default="Africa/Nairobi")
+    # Default for products the shop starts tracking (chosen during onboarding).
+    default_tracking_mode = models.CharField(
+        max_length=12, choices=RecordingPreference.choices, default=RecordingPreference.TRANSACTION
+    )
+    onboarding_completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

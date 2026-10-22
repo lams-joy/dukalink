@@ -21,3 +21,17 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_units(self, obj):
         active = [u for u in obj.units.all() if u.is_active]
         return ProductUnitSerializer(active, many=True).data
+
+
+class CustomProductSerializer(ProductSerializer):
+    """A shop's own product. `shop_product_id` is set when it was tracked on creation."""
+
+    shop_product_id = serializers.SerializerMethodField()
+
+    class Meta(ProductSerializer.Meta):
+        fields = (*ProductSerializer.Meta.fields, "shop_product_id")
+        read_only_fields = fields
+
+    def get_shop_product_id(self, obj) -> str | None:
+        value = getattr(obj, "shop_product_id", None)
+        return str(value) if value else None

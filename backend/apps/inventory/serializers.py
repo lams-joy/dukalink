@@ -210,6 +210,32 @@ class LowStockAlertSerializer(serializers.ModelSerializer):
         return str(obj.reorder_level_base - obj.quantity_base)
 
 
+# ------------------------------------------------------------------ custom products
+class CustomUnitIn(serializers.Serializer):
+    unit_name = serializers.CharField(max_length=50)
+    base_quantity = qty_field()  # how many BASE units one of this unit holds
+    is_purchase_unit = serializers.BooleanField(default=True)
+    is_sale_unit = serializers.BooleanField(default=True)
+
+
+class CustomProductIn(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    name = serializers.CharField(max_length=200)
+    base_unit = serializers.CharField(max_length=50)  # e.g. kg, litre, piece
+    brand = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    barcode = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
+    category = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    units = CustomUnitIn(many=True, required=False, max_length=20, default=list)
+    track = serializers.BooleanField(default=True)  # also start tracking it in this shop
+    reorder_level_base = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=Decimal("0"), required=False, allow_null=True
+    )
+
+
+class AddUnitIn(CustomUnitIn):
+    idempotency_key = serializers.UUIDField()
+
+
 # ------------------------------------------------------------------ stock counts
 class StockCountItemOut(serializers.ModelSerializer):
     shop_product_id = serializers.UUIDField(read_only=True)

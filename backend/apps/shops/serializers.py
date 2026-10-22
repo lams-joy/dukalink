@@ -12,9 +12,10 @@ class ShopSerializer(serializers.ModelSerializer):
         model = Shop
         fields = (
             "id", "name", "location_text", "latitude", "longitude", "timezone",
-            "my_role", "created_at", "updated_at",
+            "default_tracking_mode", "onboarding_completed_at", "my_role",
+            "created_at", "updated_at",
         )  # fmt: skip
-        read_only_fields = ("id", "created_at", "updated_at")
+        read_only_fields = ("id", "onboarding_completed_at", "created_at", "updated_at")
 
     def validate_timezone(self, value):
         try:

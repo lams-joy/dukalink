@@ -11,7 +11,8 @@ class ProductListView(ListAPIView):
     serializer_class = ProductSerializer
 
     def get_queryset(self):
-        qs = Product.objects.filter(is_active=True).prefetch_related("units").order_by("name")
+        # Shared entries only: another shop's custom products must never appear here.
+        qs = Product.objects.filter(is_active=True, owner_shop__isnull=True).prefetch_related("units").order_by("name")
         q = self.request.query_params.get("q", "").strip()
         if q:
             qs = qs.filter(Q(name__icontains=q) | Q(brand__icontains=q) | Q(barcode=q))

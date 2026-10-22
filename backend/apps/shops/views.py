@@ -54,3 +54,13 @@ class ShopMemberCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         new_member = services.add_member(shop=membership.shop, **serializer.validated_data)
         return Response(MembershipSerializer(new_member).data, status=status.HTTP_201_CREATED)
+
+
+class OnboardingCompleteView(APIView):
+    """Owner/manager. Finishes shop setup; see services.complete_onboarding."""
+
+    def post(self, request, shop_id):
+        membership = get_membership(request.user, shop_id, roles=MANAGEMENT_ROLES)
+        summary = services.complete_onboarding(membership.shop)
+        membership.shop.my_role = membership.role
+        return Response({"shop": ShopSerializer(membership.shop).data, "onboarding": summary})

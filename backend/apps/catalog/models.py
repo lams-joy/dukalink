@@ -4,10 +4,12 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 
 
 class Product(models.Model):
-    """Shared catalogue entry. (Shop-specific custom products are a later step.)"""
+    """A product. owner_shop is NULL for the shared catalogue; a custom product belongs to,
+    and is visible only to, the one shop that created it."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
@@ -15,12 +17,23 @@ class Product(models.Model):
     barcode = models.CharField(max_length=32, blank=True)
     category = models.CharField(max_length=100, blank=True)
     base_unit = models.CharField(max_length=50, help_text="Canonical unit, e.g. kg, litre, piece.")
+    owner_shop = models.ForeignKey(
+        "shops.Shop", null=True, blank=True, on_delete=models.PROTECT, related_name="custom_products"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [models.Index(fields=["name"])]
+        constraints = [
+            # A shop cannot hold two custom products with the same name + brand.
+            models.UniqueConstraint(
+                "owner_shop", Lower("name"), Lower("brand"),
+                condition=Q(owner_shop__isnull=False, is_active=True),
+                name="uniq_custom_product_per_shop",
+            ),
+        ]  # fmt: skip
 
     def ensure_base_unit(self) -> "ProductUnit":
         unit, _ = ProductUnit.objects.get_or_create(

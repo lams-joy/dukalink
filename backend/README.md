@@ -84,8 +84,7 @@ after a network failure is always safe. Sales synced this way are stored with
 
 ## Not built yet
 
-Batch/expiry and expiry alerts, custom shop products,
-onboarding-complete, suppliers, orders, group buying, notifications, audit log.
+Batch/expiry and expiry alerts, suppliers, orders, group buying, notifications, audit log.
 
 ## Known limitations
 

@@ -10,7 +10,7 @@ class ProductUnitInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "brand", "category", "base_unit", "is_active")
+    list_display = ("name", "brand", "category", "base_unit", "owner_shop", "is_active")
     search_fields = ("name", "brand", "barcode")
     list_filter = ("is_active", "category")
     inlines = [ProductUnitInline]
