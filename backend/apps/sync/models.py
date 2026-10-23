@@ -11,7 +11,7 @@ class SyncOperation(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     shop = models.ForeignKey("shops.Shop", on_delete=models.PROTECT)
     operation_id = models.UUIDField()  # the client's idempotency key
-    operation_type = models.CharField(max_length=50)
+    operation_type = models.CharField(max_length=100)  # "<name>:<target uuid>" can pass 50
     payload_hash = models.CharField(max_length=64)
     response_status = models.PositiveSmallIntegerField(null=True)
     response_body = models.JSONField(null=True)
@@ -22,3 +22,6 @@ class SyncOperation(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["user", "operation_id"], name="uniq_operation_per_user")
         ]
+
+    def __str__(self):
+        return f"{self.operation_type} {self.operation_id}"

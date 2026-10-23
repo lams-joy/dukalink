@@ -35,6 +35,9 @@ class Product(models.Model):
             ),
         ]  # fmt: skip
 
+    def __str__(self):
+        return self.name
+
     def ensure_base_unit(self) -> "ProductUnit":
         unit, _ = ProductUnit.objects.get_or_create(
             product=self,
@@ -46,9 +49,6 @@ class Product(models.Model):
             },
         )
         return unit
-
-    def __str__(self):
-        return self.name
 
 
 class ProductUnit(models.Model):
@@ -70,6 +70,9 @@ class ProductUnit(models.Model):
             ),
         ]
 
+    def __str__(self):
+        return f"{self.unit_name} = {self.base_quantity} {self.product.base_unit}"
+
     def clean(self):
         super().clean()
         if self.base_quantity is not None and self.base_quantity <= 0:
@@ -80,6 +83,3 @@ class ProductUnit(models.Model):
             and self.base_quantity != Decimal("1")
         ):
             raise ValidationError({"base_quantity": "The base unit must have a factor of 1."})
-
-    def __str__(self):
-        return f"{self.unit_name} = {self.base_quantity} {self.product.base_unit}"

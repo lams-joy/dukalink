@@ -104,6 +104,9 @@ class StockMovement(models.Model):
             ),
         ]
 
+    def __str__(self):
+        return f"{self.movement_type} {self.quantity_base_delta} ({self.pk})"
+
     def save(self, *args, **kwargs):
         if not self._state.adding:
             raise AppendOnlyError("Stock movements are append-only.")
@@ -140,6 +143,9 @@ class PurchaseReceipt(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"Receipt {self.pk} ({self.currency})"
+
     @property
     def status(self) -> str:
         return _document_status(self.items)
@@ -163,6 +169,9 @@ class PurchaseItem(models.Model):
     )
     reversed_at = models.DateTimeField(null=True, blank=True)
 
+    def __str__(self):
+        return f"{self.product_name_snapshot} x {self.quantity} {self.unit_name_snapshot}"
+
 
 class Sale(models.Model):
     class Source(models.TextChoices):
@@ -177,6 +186,9 @@ class Sale(models.Model):
     total_amount = models.DecimalField(**MONEY)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Sale {self.pk} ({self.currency})"
 
     @property
     def status(self) -> str:
@@ -199,6 +211,9 @@ class SaleItem(models.Model):
         StockMovement, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     reversed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.product_name_snapshot} x {self.quantity} {self.unit_name_snapshot}"
 
 
 class StockCount(models.Model):
