@@ -36,7 +36,7 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG 
 # Browser clients (the Expo web build, the wholesaler portal) run on another origin than the API.
 # Auth is a bearer token in a header, not a cookie, so only the allowed origins need listing.
 CORS_ALLOWED_ORIGINS = env_list(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081" if DEBUG else ""
+    "CORS_ALLOWED_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081,http://localhost:5173,http://127.0.0.1:5173" if DEBUG else ""
 )
 CORS_EXPOSE_HEADERS = ["X-Request-ID", "Idempotent-Replayed"]
 
