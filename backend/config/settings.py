@@ -33,6 +33,13 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
 
+# Browser clients (the Expo web build, the wholesaler portal) run on another origin than the API.
+# Auth is a bearer token in a header, not a cookie, so only the allowed origins need listing.
+CORS_ALLOWED_ORIGINS = env_list(
+    "CORS_ALLOWED_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081" if DEBUG else ""
+)
+CORS_EXPOSE_HEADERS = ["X-Request-ID", "Idempotent-Replayed"]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -40,6 +47,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
     "rest_framework",
     "drf_spectacular",
     "apps.common",
@@ -56,6 +64,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "apps.common.middleware.RequestIDMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # before CommonMiddleware
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
