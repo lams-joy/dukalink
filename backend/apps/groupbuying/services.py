@@ -601,8 +601,11 @@ def _qty_str(value) -> str:
 
 
 def _row(p: GroupParticipant, unit_price: Decimal) -> dict:
+    cancelled = p.order.status == "cancelled"
     return {
         "order_id": p.order_id, "order_status": p.order.status,
+        "cancelled_by": p.order.cancelled_by if cancelled else "",
+        "cancel_reason": p.order.status_note if cancelled else "",
         "quantity": _qty_str(p.quantity), "quantity_base": _qty_str(p.quantity_base),
         "unit_price": _money_str(unit_price), "goods_total": _money_str(p.goods_total),
         "delivery_share": _money_str(p.delivery_share),

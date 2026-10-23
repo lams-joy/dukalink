@@ -8,8 +8,10 @@ Rules worth knowing (see also models.Order):
   availability: the supplier reconfirms it by confirming (or rejects).
 * The supplier confirms the order as placed (adding an optional delivery fee) or rejects it.
   Nobody edits a confirmed order; changes go through cancellation.
-* Cancelling is allowed until dispatch. After dispatch the only way to close an order is
-  receipt, where shortages are recorded explicitly (never assumed away).
+* Cancelling is allowed until dispatch, except that an order generated from a confirmed group
+  can only be cancelled by the wholesaler (the shop's commitment is binding; a shop that cannot
+  go through with it asks the wholesaler, who records why). After dispatch the only way to
+  close an order is receipt, where shortages are recorded explicitly (never assumed away).
 * Receipt writes an ordinary PurchaseReceipt into the shop's stock for what actually arrived.
 * Conflict of interest: a person cannot order from a wholesaler they work for, nor act as
   supplier on an order placed by a shop they belong to.
@@ -73,6 +75,12 @@ def _forbid_member_of_ordering_shop(order: Order, user) -> None:
         raise PermissionDenied(
             "You belong to the ordering shop, so you cannot act on this order as the supplier."
         )
+
+
+def _group_id(order: Order):
+    """The group this order was generated from, or None for an ordinary order."""
+    link = getattr(order, "group_participation", None)  # reverse one-to-one; None when absent
+    return link.group_id if link else None
 
 
 def _record(action, order, actor, changes=None):
@@ -282,13 +290,23 @@ def cancel_by_wholesaler(*, wholesaler, actor, order_id, reason) -> Order:
 def cancel_by_shop(*, shop, actor, order_id, reason) -> Order:
     reason = _need_reason(reason)
     order = _lock_order(order_id, shop=shop)
+    if _group_id(order) is not None:
+        raise StateConflict(
+            "This order came from a confirmed group order, so the shop cannot cancel it. "
+            "Ask the wholesaler to cancel it.",
+            code="group_order_locked",
+        )
     return _cancel(order, actor, reason, by="shop")
 
 
 def _cancel(order: Order, actor, reason: str, *, by: str) -> Order:
     _require_status(order, Status.SUBMITTED, Status.CONFIRMED, doing="cancelled")
     _close(order, Status.CANCELLED, reason, cancelled_by=by)
-    _record("order.cancelled", order, actor, {"reason": reason, "by": by})
+    details = {"reason": reason, "by": by}
+    group_id = _group_id(order)
+    if group_id is not None:
+        details["group_order_id"] = group_id
+    _record("order.cancelled", order, actor, details)
     return order
 
 

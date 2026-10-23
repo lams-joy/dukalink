@@ -17,7 +17,7 @@ from apps.suppliers.models import WholesalerMembership
 from .conftest import make_client
 from .test_group_lifecycle import W, confirm, decline, expire
 from .test_groups import G, detail, join, make_group, withdraw
-from .test_orders import audit_actions, receive_body, stock
+from .test_orders import WO, audit_actions, receive_body, stock
 
 pytestmark = pytest.mark.django_db
 
@@ -327,9 +327,8 @@ def test_frozen_costs_do_not_move_when_an_order_is_cancelled_or_the_offer_change
     from apps.suppliers import services as supplier_services
 
     order = orders_of(shop)[0]
-    cancel = owner_client.post(
-        f"/api/v1/shops/{shop.pk}/orders/{order.pk}/cancel/", {"reason": "changed my mind"},
-        format="json",
+    cancel = seller_client.post(
+        WO(verified, f"{order.pk}/cancel/"), {"reason": "shop unreachable"}, format="json"
     )
     assert cancel.status_code == 200
     supplier_services.update_offer(
@@ -339,6 +338,59 @@ def test_frozen_costs_do_not_move_when_an_order_is_cancelled_or_the_offer_change
     assert body["mine"]["order_status"] == "cancelled"  # the live status is shown...
     assert body["mine"]["goods_total"] == "27200.00"  # ...but what was agreed is not rewritten
     assert body["total"] == "69000.02" and body["unit_price"] == "6800.00"
+
+
+# ================================================================== cancelling a group order
+def test_a_shop_cannot_cancel_an_order_that_came_from_a_confirmed_group(
+    confirmed, owner_client, shop
+):
+    order = orders_of(shop)[0]
+    resp = owner_client.post(
+        f"/api/v1/shops/{shop.pk}/orders/{order.pk}/cancel/", {"reason": "changed my mind"},
+        format="json",
+    )
+    assert resp.status_code == 409 and resp.json()["error"]["code"] == "group_order_locked"
+    order.refresh_from_db()
+    assert order.status == "confirmed" and order.cancelled_by == ""
+    assert "order.cancelled" not in audit_actions(str(order.pk))
+
+
+def test_the_wholesaler_can_cancel_one_group_order_but_must_give_a_reason(
+    confirmed, seller_client, verified, shop, other_shop
+):
+    order = orders_of(shop)[0]
+    url = WO(verified, f"{order.pk}/cancel/")
+    assert seller_client.post(url, {}, format="json").status_code == 400
+    ok = seller_client.post(url, {"reason": "Shop closed, cannot deliver"}, format="json")
+    assert ok.status_code == 200
+    order.refresh_from_db()
+    assert order.status == "cancelled" and order.cancelled_by == "wholesaler"
+    assert Order.objects.get(shop=other_shop).status == "confirmed"  # the others are unaffected
+
+
+def test_a_cancelled_group_order_shows_who_cancelled_and_why_without_moving_costs(
+    confirmed, seller_client, owner_client, other_client, verified, shop, other_shop
+):
+    order = orders_of(shop)[0]
+    url = WO(verified, f"{order.pk}/cancel/")
+    assert seller_client.post(url, {"reason": "Shop closed"}, format="json").status_code == 200
+
+    body = costs(owner_client, shop, confirmed).json()
+    assert body["mine"]["order_status"] == "cancelled"
+    assert body["mine"]["cancelled_by"] == "wholesaler"
+    assert body["mine"]["cancel_reason"] == "Shop closed"
+    assert body["total"] == "69000.02" and body["mine"]["total"] == "27600.01"
+
+    theirs = costs(other_client, other_shop, confirmed).json()["mine"]
+    assert theirs["order_status"] == "confirmed"
+    assert theirs["cancelled_by"] == "" and theirs["cancel_reason"] == ""
+
+    rows = seller_client.get(W(verified, f"{confirmed['id']}/cost-breakdown/")).json()["orders"]
+    assert [r["cancelled_by"] for r in rows] == ["wholesaler", "", ""]
+
+    event = AuditEvent.objects.get(action="order.cancelled", object_id=str(order.pk))
+    assert event.changes["group_order_id"] == confirmed["id"]
+    assert event.changes["by"] == "wholesaler"
 
 
 # ================================================================== the whole journey

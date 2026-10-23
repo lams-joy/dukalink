@@ -88,7 +88,12 @@ Chosen to keep the first pilot simple, transparent and safe. Each can be revisit
 ### 2026-10-23 — 5c orders and costs details
 - **Status:** Accepted
 - **Decision:** (1) Generated orders start `confirmed` (the terms were agreed at confirmation) and then follow the ordinary order flow. (2) The group's goods total is the SUM of the shops' individually rounded line totals, so shares, orders and totals reconcile to the cent. (3) The delivery fee is split by base-unit quantity, largest remainder, ties by earliest `joined_at` then shop id. (4) A shop sees the group totals and its own line only; the wholesaler sees one row per order, as it already sees those shops through the orders it must fulfil. (5) Cost figures are frozen on the participant rows; the live order status is shown beside them. (6) Delivery fees are not added to stock unit cost on receipt (same as ordinary orders).
-- **Open question:** generated orders currently follow the ordinary order rules, so a shop or the wholesaler can still cancel a confirmed order before dispatch. If a confirmed group commitment should be harder to walk away from, that needs its own rule (for example wholesaler-only cancellation, or a recorded reason shown to the group).
+
+### 2026-10-23 — Cancelling a confirmed group order (5e)
+- **Status:** Accepted
+- **Decision:** (1) A shop cannot cancel an order generated from a confirmed group: the request is refused with 409 `group_order_locked`. (2) The wholesaler can still cancel an individual group order before dispatch, with the usual required reason, for example when a shop closes or cannot be reached. (3) Who cancelled and why is shown on that order's line of the cost breakdown, and the audit event carries the group id. (4) Costs stay frozen: no other shop's share changes when one order is cancelled.
+- **Why:** Confirmation is the binding point, so a shop should not be able to drop out alone. The platform has no payments or escrow to enforce a commitment, so a hard block with no exit would trap a shop in a real emergency. Routing it through the wholesaler keeps a human decision and an audit trail.
+- **Consequences:** A cancelled order can leave the wholesaler delivering less than the group agreed, at fees split for the original group. That is accepted for the pilot and should be reviewed with real cases. Clients cannot yet tell from an order alone that it is a group order, so a mobile screen would need that exposed before hiding the cancel button.
 
 ## Decision record template
 

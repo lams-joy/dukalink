@@ -54,7 +54,7 @@ This is the endpoint catalogue. The OpenAPI schema is generated from the code (`
 | POST | `/shops/{shop_id}/orders/` | Place ordinary order |
 | GET | `/shops/{shop_id}/orders/` | Shop order history |
 | GET | `/orders/{order_id}/` | Order detail |
-| POST | `/orders/{order_id}/cancel/` | Request cancellation |
+| POST | `/orders/{order_id}/cancel/` | Request cancellation. Refused with 409 `group_order_locked` for an order generated from a confirmed group; the wholesaler cancels those |
 | POST | `/wholesaler/orders/{id}/confirm/` | Confirm stock/terms |
 | POST | `/wholesaler/orders/{id}/dispatch/` | Mark dispatched |
 | POST | `/orders/{id}/receive/` | Record receipt and discrepancies |
@@ -89,7 +89,7 @@ Lifecycle: `open` -> `closed` (deadline with target met, or organiser closes) ->
 
 Errors specific to groups: `group_not_open`, `invalid_transition` (409); `target_not_reached`, `price_above_cap`, `fee_above_cap`, `exceeds_availability`, `reason_required` (400).
 
-Confirming generates one ordinary order per active participant, already `confirmed`, in the same transaction (all or nothing). They appear in the normal order lists and continue through dispatch and receipt. Each carries the same unit price and that shop's delivery share. For a collection group the order's `delivery_address` holds the collection point. The cost breakdown reads frozen figures, so later offer edits or order cancellations never rewrite what was agreed (the live `order_status` is shown alongside). Cost breakdown before confirmation returns 409 `not_confirmed`.
+Confirming generates one ordinary order per active participant, already `confirmed`, in the same transaction (all or nothing). They appear in the normal order lists and continue through dispatch and receipt. Each carries the same unit price and that shop's delivery share. For a collection group the order's `delivery_address` holds the collection point. The cost breakdown reads frozen figures, so later offer edits or order cancellations never rewrite what was agreed (the live `order_status` is shown alongside, with `cancelled_by` and `cancel_reason` when the order was cancelled). A shop cannot cancel one of these orders; the wholesaler can, with a reason (see decisions.md). Cost breakdown before confirmation returns 409 `not_confirmed`.
 
 ## 5. Notifications and administration
 

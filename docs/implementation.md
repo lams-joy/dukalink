@@ -119,6 +119,7 @@ Decisions for this phase are in `decisions.md` (2026-10-23). Each chunk ships wi
 - **5a Groups and commitments (done):** `GroupOrder` and `GroupParticipant` models; create, list, detail and progress; join, change and withdraw while open; one commitment per shop; cached committed quantity that reconciles to active commitments; idempotency, row locking, audit events; race tests for simultaneous joins and changes.
 - **5b Lifecycle and supplier confirmation (done):** deadline handling (lazy close plus `close_expired_groups`), failed, cancelled and declined paths, wholesaler confirm with price and delivery-fee caps and a terms snapshot, binding point enforced, permissions and audit.
 - **5c Orders and costs (done):** atomic generation of one order per participating shop, same tier price, largest-remainder delivery-fee split, `cost-breakdown` endpoint, reconciliation tests (aggregates equal commitments; costs equal totals), a full recruitment-to-receipt scenario test.
+- **5e Cancelling a confirmed group order (done):** shop cancellation refused for group orders (409 `group_order_locked`), wholesaler cancellation kept with its reason, `cancelled_by` and `cancel_reason` on the cost breakdown, audit event linked to the group.
 - **5d Wrap-up (done):** `api.md` and the README reconciled with the code, full PostgreSQL run.
 
 ### Exit criteria

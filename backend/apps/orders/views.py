@@ -91,7 +91,8 @@ class ShopOrderDetailView(ShopScoped, APIView):
 
 
 class ShopOrderCancelView(ShopScoped, APIView):
-    """Owner/manager. Allowed until the supplier dispatches. Body: {reason}."""
+    """Owner/manager. Allowed until the supplier dispatches, except for an order generated from a
+    confirmed group (409 `group_order_locked`; the wholesaler cancels those). Body: {reason}."""
 
     def post(self, request, shop_id, order_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
