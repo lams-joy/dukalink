@@ -12,6 +12,7 @@ from apps.shops.models import ShopMembership
 from apps.suppliers import services as supplier_services
 
 PASSWORD = "S3cure-pass!"
+D = Decimal
 
 
 def make_client(user):
@@ -119,3 +120,34 @@ def rival(rival_user, admin_user):
         rival_user, business_name="Rival Traders", contact_phone="0744000000"
     )
     return supplier_services.verify_wholesaler(wholesaler_id=w.pk, actor=admin_user)
+
+
+# ------------------------------------------------------------------ group buying
+@pytest.fixture
+def offer(verified, seller, sugar):
+    """7,000 per 50 kg sack, 6,800 from 10 sacks; at least 2 sacks per shop; 40 available."""
+    return supplier_services.create_offer(
+        wholesaler=verified, actor=seller, product_id=sugar.product.pk,
+        product_unit_id=sugar.sack.pk, price_per_unit=D("7000"), minimum_order_quantity=D("2"),
+        available_quantity=D("40"), tiers=[{"minimum_quantity": D("10"), "unit_price": D("6800")}],
+    )  # fmt: skip
+
+
+@pytest.fixture
+def third_user():
+    return User.objects.create_user("0744444444", PASSWORD, full_name="Faith Third")
+
+
+@pytest.fixture
+def third_shop(third_user):
+    return shop_services.create_shop(third_user, name="Faith Duka")
+
+
+@pytest.fixture
+def other_client(other_user):
+    return make_client(other_user)
+
+
+@pytest.fixture
+def third_client(third_user):
+    return make_client(third_user)
