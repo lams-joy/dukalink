@@ -13,7 +13,7 @@ Build a working vertical slice in each phase. Keep changes small, testable and r
 | 2 Inventory engine (backend) | Done; mobile SQLite/offline queue not started |
 | 3 Mobile inventory experience | Not started |
 | 4 Wholesaler catalogue and orders (backend) | Done; wholesaler web portal not started |
-| 5 Group buying (backend) | In progress, see chunks below |
+| 5 Group buying (backend) | Done (5a-5d); mobile and wholesaler web screens not started |
 | 6 Pilot hardening | Not started |
 
 Backend checks: `ruff check .`, `makemigrations --check`, and `pytest` on PostgreSQL 16 (race tests are skipped on SQLite).
@@ -119,7 +119,7 @@ Decisions for this phase are in `decisions.md` (2026-10-23). Each chunk ships wi
 - **5a Groups and commitments (done):** `GroupOrder` and `GroupParticipant` models; create, list, detail and progress; join, change and withdraw while open; one commitment per shop; cached committed quantity that reconciles to active commitments; idempotency, row locking, audit events; race tests for simultaneous joins and changes.
 - **5b Lifecycle and supplier confirmation (done):** deadline handling (lazy close plus `close_expired_groups`), failed, cancelled and declined paths, wholesaler confirm with price and delivery-fee caps and a terms snapshot, binding point enforced, permissions and audit.
 - **5c Orders and costs (done):** atomic generation of one order per participating shop, same tier price, largest-remainder delivery-fee split, `cost-breakdown` endpoint, reconciliation tests (aggregates equal commitments; costs equal totals), a full recruitment-to-receipt scenario test.
-- **5d Wrap-up:** `api.md` and OpenAPI updated, docs reconciled with the code, full PostgreSQL run.
+- **5d Wrap-up (done):** `api.md` and the README reconciled with the code, full PostgreSQL run.
 
 ### Exit criteria
 - A complete group can progress from recruitment to delivery.

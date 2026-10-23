@@ -4,7 +4,7 @@ Base path: `/api/v1/`
 Format: JSON  
 Authentication: secure session or token-based authentication; final mechanism to be selected before implementation.
 
-This is the initial endpoint catalogue. Request/response schemas and OpenAPI definitions should be added alongside each implementation.
+This is the endpoint catalogue. The OpenAPI schema is generated from the code (`/api/schema/`, browsable at `/api/docs/`); this file is the human-readable summary of behaviour and rules.
 
 ## 1. Authentication and shops
 

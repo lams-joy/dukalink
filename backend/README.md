@@ -1,8 +1,13 @@
 # DukaLink backend
 
 Django + DRF API. Built so far: Phase 0 foundation, accounts, shops/memberships, shared
-catalogue with unit conversions, and the inventory ledger (opening stock, purchase receipts,
-sales, adjustments, reversals) with idempotent writes.
+catalogue with unit conversions, the inventory ledger (opening stock, purchase receipts,
+sales, adjustments, reversals, stock counts) with idempotent writes and offline sync, wholesaler
+suppliers and offers, ordinary orders, group buying (commitments, lifecycle, supplier
+confirmation, per-shop orders and cost breakdown) and the audit log.
+
+Interactive API docs are served at `/api/docs/` and the OpenAPI schema at `/api/schema/` when
+the server is running.
 
 ## Run it locally
 
@@ -93,7 +98,7 @@ python manage.py close_expired_groups
 
 ## Not built yet
 
-Batch/expiry and expiry alerts, suppliers, orders, group buying, notifications, audit log.
+Batch/expiry and expiry alerts, notifications, payments.
 
 ## Known limitations
 
