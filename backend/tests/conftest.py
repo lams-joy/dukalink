@@ -15,6 +15,12 @@ PASSWORD = "S3cure-pass!"
 D = Decimal
 
 
+@pytest.fixture(autouse=True)
+def _fast_password_hasher(settings):
+    """PBKDF2 is deliberately slow (~0.2s per hash); every fixture user pays it. Tests only."""
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
 def make_client(user):
     client = APIClient()
     client.force_authenticate(user)
