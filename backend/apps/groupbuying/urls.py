@@ -19,9 +19,19 @@ urlpatterns = [
     ),
     path(f"{S}<uuid:group_id>/cancel/", views.GroupCancelView.as_view(), name="shop-group-cancel"),
     path(f"{S}<uuid:group_id>/close/", views.GroupCloseView.as_view(), name="shop-group-close"),
+    path(
+        f"{S}<uuid:group_id>/cost-breakdown/",
+        views.GroupCostBreakdownView.as_view(),
+        name="shop-group-costs",
+    ),
     # the supplying wholesaler
     path(W, views.WholesalerGroupListView.as_view(), name="wholesaler-groups"),
     path(f"{W}<uuid:group_id>/", views.WholesalerGroupDetailView.as_view(), name="wholesaler-group"),
+    path(
+        f"{W}<uuid:group_id>/cost-breakdown/",
+        views.WholesalerGroupCostBreakdownView.as_view(),
+        name="wholesaler-group-costs",
+    ),
     path(
         f"{W}<uuid:group_id>/confirm/",
         views.WholesalerGroupConfirmView.as_view(),

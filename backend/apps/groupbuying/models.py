@@ -153,11 +153,24 @@ class GroupParticipant(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     withdrawn_at = models.DateTimeField(null=True, blank=True)
 
+    # Filled in for ACTIVE participants when the wholesaler confirms the group: this shop's
+    # frozen share of the cost, and the ordinary order generated for it.
+    goods_total = models.DecimalField(null=True, blank=True, **MONEY)
+    delivery_share = models.DecimalField(null=True, blank=True, **MONEY)
+    order = models.OneToOneField(
+        "orders.Order", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="group_participation",
+    )  # fmt: skip
+
     class Meta:
         ordering = ["joined_at", "id"]
         constraints = [
             models.UniqueConstraint(fields=["group", "shop"], name="uniq_shop_per_group"),
             models.CheckConstraint(condition=Q(quantity__gt=0), name="participant_qty_positive"),
+            models.CheckConstraint(
+                condition=Q(delivery_share__isnull=True) | Q(delivery_share__gte=0),
+                name="participant_share_non_negative",
+            ),
         ]
 
     def __str__(self):
