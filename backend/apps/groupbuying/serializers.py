@@ -38,6 +38,20 @@ class ReasonIn(serializers.Serializer):
     reason = serializers.CharField(max_length=255)
 
 
+class ConfirmGroupIn(serializers.Serializer):
+    """Both optional. `unit_price` defaults to (and may not exceed) the tier price for the
+    committed total; `delivery_fee` defaults to 0 and may not exceed the group's estimate."""
+
+    unit_price = serializers.DecimalField(
+        max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False,
+        allow_null=True, default=None,
+    )  # fmt: skip
+    delivery_fee = serializers.DecimalField(
+        max_digits=14, decimal_places=2, min_value=Decimal("0"), required=False,
+        default=Decimal("0"),
+    )  # fmt: skip
+
+
 # ------------------------------------------------------------------ output
 def _price(value) -> str:
     return f"{value:.2f}"
@@ -61,6 +75,7 @@ class GroupOrderSerializer(serializers.ModelSerializer):
     is_organiser = serializers.SerializerMethodField()
     my_commitment = serializers.SerializerMethodField()
     binding = serializers.SerializerMethodField()
+    terms = serializers.SerializerMethodField()
 
     class Meta:
         model = GroupOrder
@@ -70,12 +85,14 @@ class GroupOrderSerializer(serializers.ModelSerializer):
             "minimum_per_shop", "target_quantity", "committed_quantity", "committed_quantity_base",
             "participant_count", "progress", "estimated_unit_price", "unit_price_at_target",
             "deadline", "delivery_method", "delivery_point", "estimated_delivery_fee", "note",
-            "wholesaler", "is_organiser", "my_commitment", "binding", "created_at", "closed_at",
+            "wholesaler", "is_organiser", "my_commitment", "binding", "confirmed_unit_price",
+            "confirmed_delivery_fee", "confirmed_at", "terms", "created_at", "closed_at",
         )  # fmt: skip
         read_only_fields = fields
 
     def _shop(self):
-        return self.context["shop"]
+        """The viewing shop; absent when the wholesaler is looking."""
+        return self.context.get("shop")
 
     def get_wholesaler(self, obj) -> dict:
         w = obj.wholesaler
@@ -95,11 +112,15 @@ class GroupOrderSerializer(serializers.ModelSerializer):
         return _price(supplier_services.effective_unit_price(obj.offer, obj.target_quantity))
 
     def get_is_organiser(self, obj) -> bool:
-        return obj.organiser_shop_id == self._shop().pk
+        shop = self._shop()
+        return shop is not None and obj.organiser_shop_id == shop.pk
 
     def get_my_commitment(self, obj) -> dict | None:
+        shop = self._shop()
+        if shop is None:
+            return None
         for p in obj.participants.all():
-            if p.shop_id == self._shop().pk:
+            if p.shop_id == shop.pk:
                 return {
                     "status": p.status,
                     "quantity": f"{p.quantity:.6f}",
@@ -111,3 +132,7 @@ class GroupOrderSerializer(serializers.ModelSerializer):
     def get_binding(self, obj) -> bool:
         """Joining is never binding; commitments bind only once the wholesaler confirms."""
         return obj.status == GroupOrder.Status.CONFIRMED
+
+    def get_terms(self, obj) -> dict | None:
+        """The frozen terms, once confirmed; null before that."""
+        return obj.terms_snapshot if obj.status == GroupOrder.Status.CONFIRMED else None

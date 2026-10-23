@@ -12,9 +12,13 @@ QTY = {"max_digits": 18, "decimal_places": 6}
 class GroupOrder(models.Model):
     """Several shops pooling demand for ONE wholesaler offer (one product, one unit).
 
-    open -> closed -> confirmed        (5b: close, confirm)
-      |        |-> failed / declined   (5b)
-      +-> cancelled                    (organiser, while open)
+    open --(deadline, target met)---> closed --(wholesaler)--> confirmed   <- the binding point
+      |                                  +--------(wholesaler)--> declined
+      +--(deadline, target missed)--> failed
+      +--(organiser, while open)----> cancelled
+
+    The organiser may also close an open group early once the target is met. A group past its
+    deadline is settled lazily (see services.settle_expired) and by `close_expired_groups`.
 
     Joining is NOT binding. Commitment becomes binding only when the wholesaler confirms the
     final terms (decisions.md, 2026-10-23). `committed_quantity*` are caches of the active
@@ -76,7 +80,18 @@ class GroupOrder(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    closed_at = models.DateTimeField(null=True, blank=True)  # cancelled (5b: also closed/failed)
+    closed_at = models.DateTimeField(null=True, blank=True)  # left `open` (any way out of it)
+
+    # Filled in only when the wholesaler confirms (the binding point). The terms are frozen:
+    # later offer edits never change them, and 5c copies them onto the per-shop orders.
+    confirmed_unit_price = models.DecimalField(null=True, blank=True, max_digits=14, decimal_places=2)
+    confirmed_delivery_fee = models.DecimalField(null=True, blank=True, **MONEY)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="+",
+    )  # fmt: skip
+    terms_snapshot = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["deadline", "id"]
@@ -92,6 +107,22 @@ class GroupOrder(models.Model):
             models.CheckConstraint(
                 condition=Q(committed_quantity__gte=0, committed_quantity_base__gte=0),
                 name="group_committed_non_negative",
+            ),
+            # A confirmed group always carries its frozen terms; nothing else may have them.
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        status="confirmed",
+                        confirmed_unit_price__gt=0,
+                        confirmed_delivery_fee__gte=0,
+                        confirmed_at__isnull=False,
+                    )
+                    | (
+                        ~Q(status="confirmed")
+                        & Q(confirmed_unit_price__isnull=True, confirmed_at__isnull=True)
+                    )
+                ),
+                name="group_confirmed_has_terms",
             ),
         ]
 

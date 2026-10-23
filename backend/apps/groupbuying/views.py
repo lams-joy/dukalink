@@ -1,10 +1,13 @@
-from rest_framework import status
+from django.db.models import Q
+from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.shops.access import MANAGEMENT_ROLES, get_membership
+from apps.suppliers.access import MANAGEMENT_ROLES as SUPPLIER_MANAGEMENT
+from apps.suppliers.access import get_wholesaler_membership
 from apps.sync.idempotency import run_idempotent, to_jsonable
 
 from . import serializers as s
@@ -42,6 +45,11 @@ class ShopScoped:
     def _fake(self) -> bool:
         return getattr(self, "swagger_fake_view", False)
 
+    def settle(self, group_id):
+        """Lazily close/fail this group if its deadline has passed. Runs and commits BEFORE the
+        action, so an action that is then refused ('deadline passed') cannot undo it."""
+        services.settle_expired(Q(pk=group_id))
+
     def output(self, group_id, shop):
         group = _groups(shop).filter(pk=group_id).first()
         if group is None:
@@ -66,6 +74,7 @@ class GroupListCreateView(ShopScoped, ListAPIView):
         if self._fake:
             return GroupOrder.objects.none()
         shop = self.membership().shop
+        services.settle_for_shop(shop)
         qs = _groups(shop)
         if self.request.query_params.get("mine") == "true":
             qs = qs.filter(participants__shop=shop)
@@ -92,7 +101,9 @@ class GroupListCreateView(ShopScoped, ListAPIView):
 
 class GroupDetailView(ShopScoped, APIView):
     def get(self, request, shop_id, group_id):
-        return Response(self.output(group_id, self.membership().shop))
+        shop = self.membership().shop
+        self.settle(group_id)
+        return Response(self.output(group_id, shop))
 
 
 class GroupJoinView(ShopScoped, APIView):
@@ -104,6 +115,7 @@ class GroupJoinView(ShopScoped, APIView):
         data = s.CommitmentIn(data=request.data)
         data.is_valid(raise_exception=True)
         payload = dict(data.validated_data)
+        self.settle(group_id)
 
         def handler():
             services.join_group(
@@ -124,6 +136,7 @@ class GroupMyCommitmentView(ShopScoped, APIView):
         data = s.CommitmentIn(data=request.data)
         data.is_valid(raise_exception=True)
         payload = dict(data.validated_data)
+        self.settle(group_id)
 
         def handler():
             services.change_commitment(
@@ -143,6 +156,7 @@ class GroupWithdrawView(ShopScoped, APIView):
         data = s.WithdrawIn(data=request.data)
         data.is_valid(raise_exception=True)
         payload = dict(data.validated_data)
+        self.settle(group_id)
 
         def handler():
             services.withdraw(shop=membership.shop, user=request.user, group_id=group_id)
@@ -158,8 +172,112 @@ class GroupCancelView(ShopScoped, APIView):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.ReasonIn(data=request.data)
         data.is_valid(raise_exception=True)
+        self.settle(group_id)
         services.cancel_group(
             shop=membership.shop, user=request.user, group_id=group_id,
             reason=data.validated_data["reason"],
         )  # fmt: skip
         return Response(self.output(group_id, membership.shop))
+
+
+class GroupCloseView(ShopScoped, APIView):
+    """Organising shop's owner/manager. Close an open group early, once the target is met.
+    Freezes the quantities (no more joining, changing or withdrawing) and sends it to the
+    wholesaler. No body."""
+
+    def post(self, request, shop_id, group_id):
+        membership = self.membership(roles=MANAGEMENT_ROLES)
+        self.settle(group_id)
+        services.close_group(shop=membership.shop, user=request.user, group_id=group_id)
+        return Response(self.output(group_id, membership.shop))
+
+
+# ------------------------------------------------------------------ wholesaler side
+def _wholesaler_groups(wholesaler):
+    return (
+        GroupOrder.objects.filter(wholesaler=wholesaler)
+        .select_related("wholesaler", "offer")
+        .prefetch_related("participants")
+    )
+
+
+class WholesalerScoped:
+    def membership(self, roles=None):
+        return get_wholesaler_membership(
+            self.request.user, self.kwargs["wholesaler_id"], roles=roles
+        )
+
+    @property
+    def _fake(self) -> bool:
+        return getattr(self, "swagger_fake_view", False)
+
+    def output(self, group_id, wholesaler):
+        group = _wholesaler_groups(wholesaler).filter(pk=group_id).first()
+        if group is None:
+            raise NotFound("Group not found.")
+        return s.GroupOrderSerializer(group, context={}).data
+
+
+class WholesalerGroupListView(WholesalerScoped, ListAPIView):
+    """This wholesaler's group orders, soonest deadline first (?status= to filter). Shows
+    totals only, never which shops took part."""
+
+    serializer_class = s.GroupOrderSerializer
+
+    def get_queryset(self):
+        if self._fake:
+            return GroupOrder.objects.none()
+        wholesaler = self.membership().wholesaler
+        services.settle_for_wholesaler(wholesaler)
+        qs = _wholesaler_groups(wholesaler)
+        wanted = self.request.query_params.get("status")
+        if wanted in GroupOrder.Status.values:
+            qs = qs.filter(status=wanted)
+        return qs
+
+
+class WholesalerGroupDetailView(WholesalerScoped, APIView):
+    def get(self, request, wholesaler_id, group_id):
+        wholesaler = self.membership().wholesaler
+        services.settle_expired(Q(pk=group_id, wholesaler=wholesaler))
+        return Response(self.output(group_id, wholesaler))
+
+
+class _SupplierGroupAction(WholesalerScoped, APIView):
+    """Owner/manager only. Subclasses implement run(); the group is returned afterwards."""
+
+    input_cls = None
+
+    def post(self, request, wholesaler_id, group_id):
+        membership = self.membership(roles=SUPPLIER_MANAGEMENT)
+        data = (self.input_cls or serializers.Serializer)(data=request.data)
+        data.is_valid(raise_exception=True)
+        wholesaler = membership.wholesaler
+        services.settle_expired(Q(pk=group_id, wholesaler=wholesaler))
+        self.run(wholesaler, request.user, group_id, data.validated_data)
+        return Response(self.output(group_id, wholesaler))
+
+
+class WholesalerGroupConfirmView(_SupplierGroupAction):
+    """THE binding point: accept the full committed quantity. Optional `unit_price` (never above
+    the tier price for the committed total) and `delivery_fee` (never above the published
+    estimate). The terms are frozen from here."""
+
+    input_cls = s.ConfirmGroupIn
+
+    def run(self, wholesaler, user, group_id, data):
+        services.confirm_group(
+            wholesaler=wholesaler, actor=user, group_id=group_id,
+            unit_price=data["unit_price"], delivery_fee=data["delivery_fee"],
+        )  # fmt: skip
+
+
+class WholesalerGroupDeclineView(_SupplierGroupAction):
+    """Turn a closed group down. Final; binds nobody. Body: {reason}."""
+
+    input_cls = s.ReasonIn
+
+    def run(self, wholesaler, user, group_id, data):
+        services.decline_group(
+            wholesaler=wholesaler, actor=user, group_id=group_id, reason=data["reason"]
+        )

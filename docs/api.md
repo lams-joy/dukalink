@@ -61,16 +61,33 @@ This is the initial endpoint catalogue. Request/response schemas and OpenAPI def
 
 ## 4. Group buying
 
+Shop side (`/shops/{shop_id}/group-orders/...`; owner/manager act, staff only view):
+
 | Method | Endpoint | Purpose |
 |---|---|---|
-| POST | `/group-orders/` | Create group |
-| GET | `/group-orders/` | Search groups |
-| GET | `/group-orders/{id}/` | Group detail/progress |
-| POST | `/group-orders/{id}/join/` | Commit quantity |
-| PATCH | `/group-orders/{id}/my-commitment/` | Change own commitment if allowed |
-| POST | `/group-orders/{id}/withdraw/` | Withdraw before cutoff |
-| POST | `/group-orders/{id}/confirm/` | Confirm final terms |
-| GET | `/group-orders/{id}/cost-breakdown/` | Show costs per shop |
+| POST | `/group-orders/` | Create group (the organiser commits straight away) |
+| GET | `/group-orders/` | Open groups to join; `?mine=true` for groups this shop took part in |
+| GET | `/group-orders/{id}/` | Group detail/progress, lifecycle status and, once confirmed, the frozen `terms` |
+| POST | `/group-orders/{id}/join/` | Commit quantity (not binding) |
+| PATCH | `/group-orders/{id}/my-commitment/` | Change own commitment while open |
+| POST | `/group-orders/{id}/withdraw/` | Withdraw while open |
+| POST | `/group-orders/{id}/cancel/` | Organiser cancels while open (`reason` required) |
+| POST | `/group-orders/{id}/close/` | Organiser closes early once the target is met |
+
+Wholesaler side (`/wholesalers/{wholesaler_id}/group-orders/...`; owner/manager decide, staff only view; totals only, never which shops took part):
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/group-orders/` | This wholesaler's groups; `?status=` filters |
+| GET | `/group-orders/{id}/` | Group detail |
+| POST | `/group-orders/{id}/confirm/` | **Binding point.** Accept the full committed quantity. Optional `unit_price` (at most the tier price for the committed total) and `delivery_fee` (at most the published estimate, default 0) |
+| POST | `/group-orders/{id}/decline/` | Turn a closed group down (`reason` required). Final |
+
+Lifecycle: `open` -> `closed` (deadline with target met, or organiser closes) -> `confirmed` or `declined`; `open` -> `failed` (deadline, target missed) or `cancelled`. Only `confirmed` is binding. Expired groups are settled lazily on the next read or write; `python manage.py close_expired_groups` settles the rest (run it from cron, e.g. every 5 minutes).
+
+Errors specific to groups: `group_not_open`, `invalid_transition` (409); `target_not_reached`, `price_above_cap`, `fee_above_cap`, `exceeds_availability`, `reason_required` (400).
+
+Planned (5c): `GET /group-orders/{id}/cost-breakdown/` and per-shop order generation on confirmation.
 
 ## 5. Notifications and administration
 

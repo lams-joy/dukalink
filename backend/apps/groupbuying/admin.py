@@ -14,4 +14,5 @@ class ParticipantInline(admin.TabularInline):
 class GroupOrderAdmin(admin.ModelAdmin):
     list_display = ("id", "product_name_snapshot", "status", "target_quantity", "committed_quantity", "deadline")
     list_filter = ("status",)
+    readonly_fields = ("terms_snapshot",)
     inlines = [ParticipantInline]

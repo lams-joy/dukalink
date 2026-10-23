@@ -80,6 +80,11 @@ Chosen to keep the first pilot simple, transparent and safe. Each can be revisit
 - **Status:** Accepted
 - **Decision:** Blocked (`ALLOW_NEGATIVE_STOCK=false`). Offline sales that would go negative come back as a `conflict` that the shopkeeper must resolve.
 
+### 2026-10-23 — 5b lifecycle details
+- **Status:** Accepted
+- **Decision:** (1) The organiser may close early only once the target is met; otherwise they wait or cancel. (2) At confirmation the wholesaler may choose a unit price at or below a cap, where the cap is the tier price for the total committed quantity, never above the list price shown when the group was created (a later price rise cannot reach the shops). The default is the cap. (3) The delivery fee defaults to 0 and may not exceed the published estimate. (4) If the live offer no longer has the committed quantity available, confirming is refused and the wholesaler must decline. (5) A suspended wholesaler cannot confirm but can still decline. (6) A person who belongs to a shop with an active commitment cannot confirm or decline as the supplier. (7) The wholesaler sees totals, never which shops took part. (8) Lazy settlement commits before the requested action runs, so a refused write after the deadline still closes or fails the group.
+- **Consequences:** Confirm and decline are guarded by the group's state under a row lock, so they need no idempotency key: a repeat is a 409.
+
 ## Decision record template
 
 ### YYYY-MM-DD — Short decision title

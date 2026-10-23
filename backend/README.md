@@ -82,6 +82,15 @@ Operations are independent, so one conflict does not block the rest. Resending a
 after a network failure is always safe. Sales synced this way are stored with
 `recording_source = "offline"`.
 
+## Scheduled jobs
+
+There is no background worker yet. Group orders past their deadline are settled lazily when read,
+and this command settles the rest (safe to run any time; run it from cron every 5 minutes):
+
+```bash
+python manage.py close_expired_groups
+```
+
 ## Not built yet
 
 Batch/expiry and expiry alerts, suppliers, orders, group buying, notifications, audit log.

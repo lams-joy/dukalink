@@ -176,8 +176,8 @@ A delivery can be partial. Represent received quantities and shortages explicitl
 - cached `committed_quantity_base` if needed
 - `deadline`, `status`
 - `estimated_delivery_fee`
-- confirmed unit price and terms snapshot
-- `supplier_confirmed_at`
+- `confirmed_unit_price`, `confirmed_delivery_fee`, `confirmed_at`, `confirmed_by` and a `terms_snapshot` (JSON) of the frozen terms, all set only at confirmation (a check constraint enforces that a `confirmed` group has them and no other status does)
+- `closed_at`: when the group left `open` by any route
 
 **GroupParticipant**
 - `id`, `group_order_id`, `shop_id`

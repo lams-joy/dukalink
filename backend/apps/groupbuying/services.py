@@ -1,9 +1,15 @@
-"""Group-buying business rules (chunk 5a: groups and commitments).
+"""Group-buying business rules (5a: groups and commitments, 5b: lifecycle and confirmation).
 
 Rules (decisions.md, 2026-10-23):
 * A group is for ONE live wholesaler offer. Commitments are quantities in that offer's unit.
 * Joining, changing and withdrawing are free while the group is open and before its deadline.
-  Nothing is binding yet; the binding point is the wholesaler's confirmation (chunk 5b).
+  Nothing is binding yet; the binding point is the wholesaler's confirmation (confirm_group).
+* At the deadline an open group becomes `closed` (target met, quantities frozen) or `failed`.
+  There is no scheduler: this happens lazily on the next read or write (settle_expired) and via
+  the `close_expired_groups` command. The wholesaler then confirms the FULL committed quantity
+  or declines. The confirmed price can never exceed the tier price for the committed total (which
+  itself never exceeds the list price at creation) and the delivery fee can never exceed the
+  group's published estimate, so nobody can be surprised upwards.
 * Each commitment must meet the offer's minimum order (it becomes one ordinary order later)
   and the total may not exceed a stated available quantity.
 * A shop has one commitment per group. Re-joining after a withdrawal reuses the same row.
@@ -24,8 +30,10 @@ from apps.audit import services as audit
 from apps.common.exceptions import DomainError, StateConflict
 from apps.common.money import money
 from apps.inventory.units import to_base
+from apps.shops.models import ShopMembership
 from apps.suppliers import services as supplier_services
 from apps.suppliers.models import SupplierOffer, WholesalerMembership
+from apps.sync.idempotency import to_jsonable
 
 from .models import GroupOrder, GroupParticipant
 
@@ -48,6 +56,11 @@ class AlreadyJoined(StateConflict):
 class NotParticipating(StateConflict):
     default_code = "not_participating"
     default_detail = "Your shop has no active commitment in this group."
+
+
+class InvalidTransition(StateConflict):
+    default_code = "invalid_transition"
+    default_detail = "That is not possible in the group's current state."
 
 
 # ------------------------------------------------------------------ queries
@@ -326,3 +339,225 @@ def cancel_group(*, shop, user, group_id, reason) -> GroupOrder:
     group.save(update_fields=["status", "status_note", "closed_at", "updated_at"])
     _record("group.cancelled", group, user, shop, {"reason": reason[:255]})
     return group
+
+
+# ------------------------------------------------------------------ lifecycle (5b)
+def _settle_locked(group: GroupOrder, now=None) -> bool:
+    """Move an expired open group to closed (target met) or failed. Call with the row locked.
+    Returns True if it changed anything. Idempotent: a settled group is left alone."""
+    now = now or timezone.now()
+    if group.status != Status.OPEN or group.deadline > now:
+        return False
+    reached = group.committed_quantity >= group.target_quantity
+    group.status = Status.CLOSED if reached else Status.FAILED
+    group.status_note = "" if reached else "The target was not reached by the deadline."
+    group.closed_at = now
+    group.save(update_fields=["status", "status_note", "closed_at", "updated_at"])
+    _record(
+        "group.closed" if reached else "group.failed", group, None, group.organiser_shop,
+        {
+            "reason": "deadline",
+            "after": {
+                "committed_quantity": group.committed_quantity,
+                "target_quantity": group.target_quantity,
+            },
+        },
+    )  # fmt: skip
+    return True
+
+
+def settle_expired(scope: Q | None = None) -> int:
+    """Settle every open group past its deadline (optionally only those matching `scope`).
+
+    Each group is settled in its own short transaction, so one problem cannot hold up the rest
+    and two callers racing on the same group settle it exactly once. Returns how many changed.
+    Call it OUTSIDE the transaction of a write that may fail: it must commit on its own.
+    """
+    now = timezone.now()
+    due = GroupOrder.objects.filter(status=Status.OPEN, deadline__lte=now)
+    if scope is not None:
+        due = due.filter(scope)
+    settled = 0
+    for group_id in list(due.values_list("pk", flat=True)):
+        with transaction.atomic():
+            group = (
+                GroupOrder.objects.select_for_update(of=("self",))
+                .select_related("organiser_shop")
+                .filter(pk=group_id, status=Status.OPEN, deadline__lte=now)
+                .first()
+            )
+            if group is not None and _settle_locked(group, now):
+                settled += 1
+    return settled
+
+
+def settle_for_shop(shop) -> int:
+    return settle_expired(Q(participants__shop=shop))
+
+
+def settle_for_wholesaler(wholesaler) -> int:
+    return settle_expired(Q(wholesaler=wholesaler))
+
+
+def _lock_for_wholesaler(group_id, wholesaler) -> GroupOrder:
+    """Lock the group for its own wholesaler only; anyone else gets 'not found'."""
+    try:
+        return (
+            GroupOrder.objects.select_for_update(of=("self",))
+            .select_related("offer", "wholesaler", "organiser_shop")
+            .get(pk=group_id, wholesaler=wholesaler)
+        )
+    except GroupOrder.DoesNotExist:
+        raise NotFound("Group not found.") from None
+
+
+def _forbid_member_of_participating_shop(group: GroupOrder, user) -> None:
+    """Conflict of interest: the supplier cannot answer for a group their own shop is in."""
+    if ShopMembership.objects.filter(
+        user=user, status=ShopMembership.Status.ACTIVE,
+        shop__group_commitments__group=group,
+        shop__group_commitments__status=GroupParticipant.Status.ACTIVE,
+    ).exists():  # fmt: skip
+        raise PermissionDenied(
+            "You belong to a participating shop, so you cannot act on this group as the supplier."
+        )
+
+
+def _need_reason(reason) -> str:
+    reason = (reason or "").strip()
+    if not reason:
+        raise DomainError("A reason is required.", code="reason_required")
+    return reason[:255]
+
+
+@transaction.atomic
+def close_group(*, shop, user, group_id) -> GroupOrder:
+    """The organiser closes an open group early. Only once the target is met: otherwise the
+    right move is to wait for more shops or to cancel. Freezes the quantities."""
+    group = _lock_group(group_id, shop)
+    if group.organiser_shop_id != shop.pk:
+        raise PermissionDenied("Only the organising shop can close this group.")
+    _require_open(group)
+    if group.committed_quantity < group.target_quantity:
+        raise DomainError(
+            "The target has not been reached yet. Wait for more shops, or cancel the group.",
+            code="target_not_reached",
+        )
+    group.status, group.closed_at = Status.CLOSED, timezone.now()
+    group.save(update_fields=["status", "closed_at", "updated_at"])
+    _record(
+        "group.closed", group, user, shop,
+        {
+            "reason": "organiser",
+            "after": {
+                "committed_quantity": group.committed_quantity,
+                "target_quantity": group.target_quantity,
+            },
+        },
+    )  # fmt: skip
+    return group
+
+
+def _terms_cap(group: GroupOrder, now) -> tuple[Decimal, Decimal | None]:
+    """(highest unit price the wholesaler may confirm, tier minimum applied).
+
+    The tier for the TOTAL committed quantity applies, and never above the list price the
+    shops saw when the group was created, even if the live offer has been raised since."""
+    price, tier_min = supplier_services.price_for(group.offer, group.committed_quantity, now)
+    return min(price, group.list_price_snapshot), tier_min
+
+
+@transaction.atomic
+def confirm_group(
+    *, wholesaler, actor, group_id, unit_price=None, delivery_fee=Decimal("0")
+) -> GroupOrder:
+    """THE binding point. The wholesaler accepts the FULL committed quantity on frozen terms.
+
+    `unit_price` defaults to the cap (tier price for the total) and may only go lower.
+    `delivery_fee` may not exceed the group's published estimate.
+    """
+    group = _lock_for_wholesaler(group_id, wholesaler)
+    _forbid_member_of_participating_shop(group, actor)
+    _settle_locked(group)  # a group past its deadline may still be sitting open
+    if group.status != Status.CLOSED:
+        raise InvalidTransition(f"A group that is {group.status} cannot be confirmed.")
+    supplier_services.require_can_trade(wholesaler)
+
+    available = group.offer.available_quantity
+    if available is not None and group.committed_quantity > available:
+        raise DomainError(
+            f"Only {available.normalize():f} x {group.unit_name_snapshot} is available, which is "
+            "less than the group has committed. Decline the group instead.",
+            code="exceeds_availability",
+        )
+
+    now = timezone.now()
+    cap, tier_min = _terms_cap(group, now)
+    price = cap if unit_price is None else money(unit_price)
+    if price <= 0 or price > cap:
+        raise DomainError(
+            f"The unit price cannot be above {cap:.2f} {group.currency} "
+            "(the tier price for the committed total).",
+            code="price_above_cap",
+        )
+    fee = money(delivery_fee)
+    if fee < 0 or fee > group.estimated_delivery_fee:
+        raise DomainError(
+            f"The delivery fee cannot be above the published estimate of "
+            f"{group.estimated_delivery_fee:.2f} {group.currency}.",
+            code="fee_above_cap",
+        )
+
+    goods = money(price * group.committed_quantity)
+    group.status = Status.CONFIRMED
+    group.confirmed_unit_price, group.confirmed_delivery_fee = price, fee
+    group.confirmed_at, group.confirmed_by = now, actor
+    group.terms_snapshot = to_jsonable(
+        {
+            "product_id": group.product_id, "product_name": group.product_name_snapshot,
+            "unit_name": group.unit_name_snapshot,
+            "unit_base_quantity": group.unit_base_quantity_snapshot,
+            "currency": group.currency, "list_price": group.list_price_snapshot,
+            "tier_minimum_quantity": tier_min, "unit_price": price,
+            "quantity": group.committed_quantity, "quantity_base": group.committed_quantity_base,
+            "participant_count": group.participant_count, "goods_total": goods,
+            "delivery_fee": fee, "total": goods + fee,
+            "delivery_method": group.delivery_method, "delivery_point": group.delivery_point,
+            "confirmed_at": now,
+        }
+    )  # fmt: skip
+    group.save(
+        update_fields=[
+            "status", "confirmed_unit_price", "confirmed_delivery_fee", "confirmed_at",
+            "confirmed_by", "terms_snapshot", "updated_at",
+        ]
+    )  # fmt: skip
+    _record(
+        "group.confirmed", group, actor, group.organiser_shop,
+        {"after": {
+            "unit_price": price, "delivery_fee": fee, "quantity": group.committed_quantity,
+            "goods_total": goods,
+        }},
+    )  # fmt: skip
+    return group
+
+
+@transaction.atomic
+def decline_group(*, wholesaler, actor, group_id, reason) -> GroupOrder:
+    """The wholesaler turns a closed group down. Final; creates no orders and binds nobody.
+    Allowed even if the wholesaler is no longer in good standing: winding down is always OK."""
+    reason = _need_reason(reason)
+    group = _lock_for_wholesaler(group_id, wholesaler)
+    _forbid_member_of_participating_shop(group, actor)
+    _settle_locked(group)
+    if group.status != Status.CLOSED:
+        raise InvalidTransition(f"A group that is {group.status} cannot be declined.")
+    group.status, group.status_note = Status.DECLINED, reason
+    group.save(update_fields=["status", "status_note", "updated_at"])
+    _record("group.declined", group, actor, group.organiser_shop, {"reason": reason})
+    return group
+
+
+def close_expired_groups() -> int:
+    """For cron: settle every open group past its deadline. See the management command."""
+    return settle_expired()

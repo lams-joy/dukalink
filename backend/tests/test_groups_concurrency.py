@@ -10,6 +10,7 @@ from django.db import connection
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 
+from apps.audit.models import AuditEvent
 from apps.groupbuying import services
 from apps.groupbuying.models import GroupOrder, GroupParticipant
 from apps.suppliers import services as supplier_services
@@ -150,3 +151,72 @@ def test_a_join_racing_a_cancel_never_corrupts_the_group(
     group.refresh_from_db()
     assert group.status == GroupOrder.Status.CANCELLED
     assert_reconciled(group.pk)
+
+
+# ------------------------------------------------------------------ lifecycle races (5b)
+@pytest.fixture
+def full_group(group, other_user, other_shop, owner, shop):
+    """Target 10; 4 + 6 committed, still open."""
+    services.join_group(shop=other_shop, user=other_user, group_id=group.pk, quantity=D("6"))
+    group.refresh_from_db()
+    return group
+
+
+@pytest.fixture
+def closed(full_group, owner, shop):
+    return services.close_group(shop=shop, user=owner, group_id=full_group.pk)
+
+
+def test_confirm_racing_a_decline_has_one_winner(closed, verified, seller):
+    outcomes = race(
+        lambda: services.confirm_group(wholesaler=verified, actor=seller, group_id=closed.pk),
+        lambda: services.decline_group(
+            wholesaler=verified, actor=seller, group_id=closed.pk, reason="No stock"
+        ),
+    )
+    assert kinds(outcomes) == ["error", "ok"], outcomes
+    closed.refresh_from_db()
+    assert closed.status in (GroupOrder.Status.CONFIRMED, GroupOrder.Status.DECLINED)
+    # the loser never left half-written terms behind (the DB constraint also guarantees it)
+    assert (closed.confirmed_unit_price is not None) == (
+        closed.status == GroupOrder.Status.CONFIRMED
+    )
+
+
+def test_two_confirms_at_once_confirm_once(closed, verified, seller):
+    confirm = lambda: services.confirm_group(  # noqa: E731
+        wholesaler=verified, actor=seller, group_id=closed.pk
+    )
+    outcomes = race(confirm, confirm)
+    assert kinds(outcomes) == ["error", "ok"], outcomes
+    assert AuditEvent.objects.filter(action="group.confirmed").count() == 1
+
+
+def test_many_readers_settling_an_expired_group_settle_it_once(full_group):
+    GroupOrder.objects.filter(pk=full_group.pk).update(
+        deadline=timezone.now() - timedelta(minutes=1)
+    )
+    settle = lambda: services.settle_expired()  # noqa: E731
+    outcomes = race(settle, settle, settle)
+    assert kinds(outcomes) == ["ok", "ok", "ok"], outcomes
+    assert sorted(result for _, result in outcomes) == [0, 0, 1]  # exactly one did the work
+    full_group.refresh_from_db()
+    assert full_group.status == GroupOrder.Status.CLOSED
+    assert AuditEvent.objects.filter(action="group.closed").count() == 1
+
+
+def test_a_withdrawal_racing_an_early_close_never_closes_below_target(
+    full_group, owner, shop, other_user, other_shop
+):
+    outcomes = race(
+        lambda: services.close_group(shop=shop, user=owner, group_id=full_group.pk),
+        lambda: services.withdraw(shop=other_shop, user=other_user, group_id=full_group.pk),
+    )
+    assert kinds(outcomes) == ["error", "ok"], outcomes  # one of them is always refused
+    full_group.refresh_from_db()
+    if full_group.status == GroupOrder.Status.CLOSED:
+        assert full_group.committed_quantity >= full_group.target_quantity
+    else:
+        assert full_group.status == GroupOrder.Status.OPEN
+        assert full_group.committed_quantity == D("4")
+    assert_reconciled(full_group.pk)
