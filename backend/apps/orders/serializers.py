@@ -1,5 +1,7 @@
+import uuid
 from decimal import Decimal
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import Order, OrderItem
@@ -86,10 +88,23 @@ class OrderItemSerializer(serializers.ModelSerializer):
         return format(obj.quantity - obj.received_quantity, "f")
 
 
+class ShopRefOut(serializers.Serializer):
+    """All a supplier learns about the ordering shop."""
+
+    name = serializers.CharField()
+
+
+class WholesalerRefOut(serializers.Serializer):
+    id = serializers.UUIDField()
+    business_name = serializers.CharField()
+    contact_phone = serializers.CharField()
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     shop = serializers.SerializerMethodField()
     wholesaler = serializers.SerializerMethodField()
+    group_order_id = serializers.SerializerMethodField()
     has_shortage = serializers.BooleanField(read_only=True)
     purchase_receipt_id = serializers.UUIDField(read_only=True, allow_null=True)
 
@@ -100,14 +115,22 @@ class OrderSerializer(serializers.ModelSerializer):
             "subtotal", "delivery_fee", "total_amount", "delivery_method", "delivery_address",
             "contact_phone", "note", "submitted_at", "confirmed_at", "dispatched_at",
             "received_at", "closed_at", "receipt_note", "has_shortage", "purchase_receipt_id",
-            "items",
+            "group_order_id", "items",
         )  # fmt: skip
         read_only_fields = fields
 
+    @extend_schema_field(ShopRefOut)
     def get_shop(self, obj):
         # Only what the supplier needs to fulfil the order: never inventory or other shop data.
         return {"name": obj.shop.name}
 
+    def get_group_order_id(self, obj) -> uuid.UUID | None:
+        """The group this order was generated from, if any. Such an order cannot be cancelled by
+        the shop (the wholesaler cancels it)."""
+        link = getattr(obj, "group_participation", None)
+        return link.group_id if link else None
+
+    @extend_schema_field(WholesalerRefOut)
     def get_wholesaler(self, obj):
         w = obj.wholesaler
         return {"id": w.pk, "business_name": w.business_name, "contact_phone": w.contact_phone}

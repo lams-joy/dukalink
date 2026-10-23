@@ -3,6 +3,7 @@ scenario. (The fee-split maths has its own database-free file, test_group_cost_s
 
 import json
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 
@@ -17,7 +18,7 @@ from apps.suppliers.models import WholesalerMembership
 from .conftest import make_client
 from .test_group_lifecycle import W, confirm, decline, expire
 from .test_groups import G, detail, join, make_group, withdraw
-from .test_orders import WO, audit_actions, receive_body, stock
+from .test_orders import WO, audit_actions, line, place, receive_body, stock
 
 pytestmark = pytest.mark.django_db
 
@@ -92,6 +93,15 @@ def test_each_party_sees_the_generated_orders_in_the_normal_order_lists(
     assert [o["total_amount"] for o in theirs] == ["20700.01"]
     incoming = seller_client.get(f"/api/v1/wholesalers/{verified.pk}/orders/").json()["results"]
     assert len(incoming) == 3 and {o["status"] for o in incoming} == {"confirmed"}
+
+
+def test_an_order_says_which_group_it_came_from_and_an_ordinary_one_does_not(
+    confirmed, owner_client, shop, offer
+):
+    (generated,) = owner_client.get(f"/api/v1/shops/{shop.pk}/orders/").json()["results"]
+    assert generated["group_order_id"] == confirmed["id"]
+    ordinary = place(owner_client, shop, line(offer, "2"), key=str(uuid4()))
+    assert ordinary.status_code == 201 and ordinary.json()["group_order_id"] is None
 
 
 def test_the_group_totals_reconcile_with_the_per_shop_costs_and_orders(confirmed):

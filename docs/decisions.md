@@ -93,7 +93,7 @@ Chosen to keep the first pilot simple, transparent and safe. Each can be revisit
 - **Status:** Accepted
 - **Decision:** (1) A shop cannot cancel an order generated from a confirmed group: the request is refused with 409 `group_order_locked`. (2) The wholesaler can still cancel an individual group order before dispatch, with the usual required reason, for example when a shop closes or cannot be reached. (3) Who cancelled and why is shown on that order's line of the cost breakdown, and the audit event carries the group id. (4) Costs stay frozen: no other shop's share changes when one order is cancelled.
 - **Why:** Confirmation is the binding point, so a shop should not be able to drop out alone. The platform has no payments or escrow to enforce a commitment, so a hard block with no exit would trap a shop in a real emergency. Routing it through the wholesaler keeps a human decision and an audit trail.
-- **Consequences:** A cancelled order can leave the wholesaler delivering less than the group agreed, at fees split for the original group. That is accepted for the pilot and should be reviewed with real cases. Clients cannot yet tell from an order alone that it is a group order, so a mobile screen would need that exposed before hiding the cancel button.
+- **Consequences:** A cancelled order can leave the wholesaler delivering less than the group agreed, at fees split for the original group. That is accepted for the pilot and should be reviewed with real cases. Orders now carry `group_order_id` (null for ordinary orders), so a client can hide the shop's cancel button for group orders.
 
 ## Decision record template
 

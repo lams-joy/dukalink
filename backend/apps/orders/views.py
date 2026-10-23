@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.generics import ListAPIView
@@ -15,7 +16,9 @@ from .models import Order
 
 
 def _orders():
-    return Order.objects.select_related("shop", "wholesaler").prefetch_related("items")
+    return Order.objects.select_related(
+        "shop", "wholesaler", "group_participation"
+    ).prefetch_related("items")
 
 
 def _one(qs, order_id) -> Order:
@@ -70,6 +73,7 @@ class ShopOrderListCreateView(ShopScoped, ListAPIView):
         qs = _orders().filter(shop=self.membership().shop)
         return _status_filter(qs, self.request)
 
+    @extend_schema(request=s.PlaceOrderIn, responses={201: s.OrderSerializer})
     def post(self, request, shop_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.PlaceOrderIn(data=request.data)
@@ -85,6 +89,7 @@ class ShopOrderListCreateView(ShopScoped, ListAPIView):
 
 
 class ShopOrderDetailView(ShopScoped, APIView):
+    @extend_schema(responses=s.OrderSerializer)
     def get(self, request, shop_id, order_id):
         qs = _orders().filter(shop=self.membership().shop)
         return Response(s.OrderSerializer(_one(qs, order_id)).data)
@@ -94,6 +99,7 @@ class ShopOrderCancelView(ShopScoped, APIView):
     """Owner/manager. Allowed until the supplier dispatches, except for an order generated from a
     confirmed group (409 `group_order_locked`; the wholesaler cancels those). Body: {reason}."""
 
+    @extend_schema(request=s.ReasonIn, responses=s.OrderSerializer)
     def post(self, request, shop_id, order_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.ReasonIn(data=request.data)
@@ -112,6 +118,7 @@ class ShopOrderReceiveView(ShopScoped, APIView):
     Body: {idempotency_key, items: [{item_id, received_quantity}], note?}. Adds the received
     goods to the shop's stock."""
 
+    @extend_schema(request=s.ReceiveOrderIn, responses=s.OrderSerializer)
     def post(self, request, shop_id, order_id):
         membership = self.membership()
         data = s.ReceiveOrderIn(data=request.data)
@@ -153,6 +160,7 @@ class WholesalerOrderListView(WholesalerScoped, ListAPIView):
 
 
 class WholesalerOrderDetailView(WholesalerScoped, APIView):
+    @extend_schema(responses=s.OrderSerializer)
     def get(self, request, wholesaler_id, order_id):
         qs = _orders().filter(wholesaler=self.membership().wholesaler)
         return Response(s.OrderSerializer(_one(qs, order_id)).data)
@@ -171,6 +179,7 @@ class _SupplierAction(WholesalerScoped, APIView):
         return Response(s.OrderSerializer(_orders().get(pk=order_id)).data)
 
 
+@extend_schema(request=s.ConfirmOrderIn, responses=s.OrderSerializer)
 class WholesalerOrderConfirmView(_SupplierAction):
     """Accept the order as placed; optionally add a delivery fee. Terms are frozen from here."""
 
@@ -182,6 +191,7 @@ class WholesalerOrderConfirmView(_SupplierAction):
         )
 
 
+@extend_schema(request=s.ReasonIn, responses=s.OrderSerializer)
 class WholesalerOrderRejectView(_SupplierAction):
     input_cls = s.ReasonIn
 
@@ -191,11 +201,13 @@ class WholesalerOrderRejectView(_SupplierAction):
         )
 
 
+@extend_schema(request=None, responses=s.OrderSerializer)
 class WholesalerOrderDispatchView(_SupplierAction):
     def run(self, wholesaler, user, order_id, data):
         services.dispatch_order(wholesaler=wholesaler, actor=user, order_id=order_id)
 
 
+@extend_schema(request=s.ReasonIn, responses=s.OrderSerializer)
 class WholesalerOrderCancelView(_SupplierAction):
     input_cls = s.ReasonIn
 

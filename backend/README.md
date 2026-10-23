@@ -102,6 +102,7 @@ Batch/expiry and expiry alerts, notifications, payments.
 
 ## Known limitations
 
+* **OpenAPI schema is partly incomplete.** The order and group-buying endpoints are fully described (`tests/test_schema.py` guards them). Inventory, suppliers, catalogue and sync views have no declared request or response serializers, so `manage.py spectacular --validate` still reports errors for them and skips those operations. Annotate them with `extend_schema` before a client is generated from the schema.
 * **Reversed sales still appear in reports.** Reversing a movement corrects stock, but the
   `Sale`/`PurchaseReceipt` header and its totals are not marked as voided, so the summary report
   still counts them. Needs a voided/reversed status on the receipt/sale before pilot use.

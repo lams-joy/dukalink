@@ -142,3 +142,56 @@ class GroupOrderSerializer(serializers.ModelSerializer):
     def get_terms(self, obj) -> dict | None:
         """The frozen terms, once confirmed; null before that."""
         return obj.terms_snapshot if obj.status == GroupOrder.Status.CONFIRMED else None
+
+
+# ------------------------------------------------------------------ cost breakdown (documentation)
+# The breakdown is built by services.cost_breakdown() as a plain dict; these describe its shape
+# for the API schema. Money and quantities are strings, exactly as sent.
+class CostLineOut(serializers.Serializer):
+    order_id = serializers.UUIDField()
+    order_status = serializers.CharField()
+    cancelled_by = serializers.CharField(help_text="'shop' or 'wholesaler'; empty unless cancelled")
+    cancel_reason = serializers.CharField(help_text="Empty unless the order was cancelled")
+    quantity = serializers.CharField()
+    quantity_base = serializers.CharField()
+    unit_price = serializers.CharField()
+    goods_total = serializers.CharField()
+    delivery_share = serializers.CharField()
+    total = serializers.CharField()
+
+
+class CostShopRefOut(serializers.Serializer):
+    name = serializers.CharField()
+
+
+class WholesalerCostLineOut(CostLineOut):
+    shop = CostShopRefOut()
+
+
+class CostBreakdownOut(serializers.Serializer):
+    group_id = serializers.UUIDField()
+    status = serializers.CharField()
+    currency = serializers.CharField()
+    unit_price = serializers.CharField()
+    tier_minimum_quantity = serializers.CharField(allow_null=True)
+    quantity = serializers.CharField()
+    quantity_base = serializers.CharField()
+    participant_count = serializers.IntegerField()
+    goods_total = serializers.CharField()
+    delivery_fee = serializers.CharField()
+    total = serializers.CharField()
+    delivery_method = serializers.CharField()
+    delivery_point = serializers.CharField()
+    confirmed_at = serializers.DateTimeField()
+
+
+class ShopCostBreakdownOut(CostBreakdownOut):
+    """A shop sees the group totals and only its own line (null if it did not take part)."""
+
+    mine = CostLineOut(allow_null=True)
+
+
+class WholesalerCostBreakdownOut(CostBreakdownOut):
+    """The wholesaler sees one row per generated order."""
+
+    orders = WholesalerCostLineOut(many=True)

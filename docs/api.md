@@ -4,7 +4,7 @@ Base path: `/api/v1/`
 Format: JSON  
 Authentication: secure session or token-based authentication; final mechanism to be selected before implementation.
 
-This is the endpoint catalogue. The OpenAPI schema is generated from the code (`/api/schema/`, browsable at `/api/docs/`); this file is the human-readable summary of behaviour and rules.
+This is the endpoint catalogue. The OpenAPI schema is generated from the code (`/api/schema/`, browsable at `/api/docs/`); this file is the human-readable summary of behaviour and rules. The order and group-buying endpoints are fully described in the schema (and a test keeps them so); inventory, suppliers, catalogue and sync are not annotated yet, so their schema entries are incomplete.
 
 ## 1. Authentication and shops
 
@@ -53,7 +53,7 @@ This is the endpoint catalogue. The OpenAPI schema is generated from the code (`
 | GET | `/wholesaler/orders/` | Supplier orders |
 | POST | `/shops/{shop_id}/orders/` | Place ordinary order |
 | GET | `/shops/{shop_id}/orders/` | Shop order history |
-| GET | `/orders/{order_id}/` | Order detail |
+| GET | `/orders/{order_id}/` | Order detail. `group_order_id` is set when the order was generated from a confirmed group, otherwise null |
 | POST | `/orders/{order_id}/cancel/` | Request cancellation. Refused with 409 `group_order_locked` for an order generated from a confirmed group; the wholesaler cancels those |
 | POST | `/wholesaler/orders/{id}/confirm/` | Confirm stock/terms |
 | POST | `/wholesaler/orders/{id}/dispatch/` | Mark dispatched |

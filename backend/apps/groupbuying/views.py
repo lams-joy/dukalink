@@ -1,4 +1,5 @@
 from django.db.models import Q
+from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.generics import ListAPIView
@@ -85,6 +86,7 @@ class GroupListCreateView(ShopScoped, ListAPIView):
             qs = qs.filter(product_id=product)
         return qs
 
+    @extend_schema(request=s.CreateGroupIn, responses={201: s.GroupOrderSerializer})
     def post(self, request, shop_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.CreateGroupIn(data=request.data)
@@ -100,6 +102,7 @@ class GroupListCreateView(ShopScoped, ListAPIView):
 
 
 class GroupDetailView(ShopScoped, APIView):
+    @extend_schema(responses=s.GroupOrderSerializer)
     def get(self, request, shop_id, group_id):
         shop = self.membership().shop
         self.settle(group_id)
@@ -110,6 +113,7 @@ class GroupJoinView(ShopScoped, APIView):
     """Owner/manager. Commit a quantity (in the offer's unit). Not binding yet.
     Body: {idempotency_key, quantity}."""
 
+    @extend_schema(request=s.CommitmentIn, responses=s.GroupOrderSerializer)
     def post(self, request, shop_id, group_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.CommitmentIn(data=request.data)
@@ -131,6 +135,7 @@ class GroupMyCommitmentView(ShopScoped, APIView):
     """Owner/manager. Change this shop's quantity while the group is open.
     Body: {idempotency_key, quantity}."""
 
+    @extend_schema(request=s.CommitmentIn, responses=s.GroupOrderSerializer)
     def patch(self, request, shop_id, group_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.CommitmentIn(data=request.data)
@@ -151,6 +156,7 @@ class GroupMyCommitmentView(ShopScoped, APIView):
 class GroupWithdrawView(ShopScoped, APIView):
     """Owner/manager. Leave the group; allowed only while it is open. Body: {idempotency_key}."""
 
+    @extend_schema(request=s.WithdrawIn, responses=s.GroupOrderSerializer)
     def post(self, request, shop_id, group_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.WithdrawIn(data=request.data)
@@ -168,6 +174,7 @@ class GroupWithdrawView(ShopScoped, APIView):
 class GroupCancelView(ShopScoped, APIView):
     """Organising shop's owner/manager, while the group is open. Body: {reason}."""
 
+    @extend_schema(request=s.ReasonIn, responses=s.GroupOrderSerializer)
     def post(self, request, shop_id, group_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         data = s.ReasonIn(data=request.data)
@@ -184,6 +191,7 @@ class GroupCostBreakdownView(ShopScoped, APIView):
     """Any member of a shop that can see the group. Once the wholesaler has confirmed it: the
     group's totals and this shop's own line and delivery share. Never other shops' lines."""
 
+    @extend_schema(responses=s.ShopCostBreakdownOut)
     def get(self, request, shop_id, group_id):
         shop = self.membership().shop
         self.settle(group_id)
@@ -198,6 +206,7 @@ class GroupCloseView(ShopScoped, APIView):
     Freezes the quantities (no more joining, changing or withdrawing) and sends it to the
     wholesaler. No body."""
 
+    @extend_schema(request=None, responses=s.GroupOrderSerializer)
     def post(self, request, shop_id, group_id):
         membership = self.membership(roles=MANAGEMENT_ROLES)
         self.settle(group_id)
@@ -250,6 +259,7 @@ class WholesalerGroupListView(WholesalerScoped, ListAPIView):
 
 
 class WholesalerGroupDetailView(WholesalerScoped, APIView):
+    @extend_schema(responses=s.GroupOrderSerializer)
     def get(self, request, wholesaler_id, group_id):
         wholesaler = self.membership().wholesaler
         services.settle_expired(Q(pk=group_id, wholesaler=wholesaler))
@@ -259,6 +269,7 @@ class WholesalerGroupDetailView(WholesalerScoped, APIView):
 class WholesalerGroupCostBreakdownView(WholesalerScoped, APIView):
     """Any member of the wholesaler. Group totals plus one row per generated order."""
 
+    @extend_schema(responses=s.WholesalerCostBreakdownOut)
     def get(self, request, wholesaler_id, group_id):
         wholesaler = self.membership().wholesaler
         group = _wholesaler_groups(wholesaler).filter(pk=group_id).first()
@@ -282,6 +293,7 @@ class _SupplierGroupAction(WholesalerScoped, APIView):
         return Response(self.output(group_id, wholesaler))
 
 
+@extend_schema(request=s.ConfirmGroupIn, responses=s.GroupOrderSerializer)
 class WholesalerGroupConfirmView(_SupplierGroupAction):
     """THE binding point: accept the full committed quantity. Optional `unit_price` (never above
     the tier price for the committed total) and `delivery_fee` (never above the published
@@ -296,6 +308,7 @@ class WholesalerGroupConfirmView(_SupplierGroupAction):
         )  # fmt: skip
 
 
+@extend_schema(request=s.ReasonIn, responses=s.GroupOrderSerializer)
 class WholesalerGroupDeclineView(_SupplierGroupAction):
     """Turn a closed group down. Final; binds nobody. Body: {reason}."""
 
