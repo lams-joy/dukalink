@@ -19,52 +19,6 @@ D = Decimal
 
 
 # ------------------------------------------------------------------ fixtures & helpers
-@pytest.fixture
-def admin_user():
-    return User.objects.create_user("0700000001", PASSWORD, full_name="Admin", is_staff=True)
-
-
-@pytest.fixture
-def admin_client(admin_user):
-    return make_client(admin_user)
-
-
-@pytest.fixture
-def seller():
-    return User.objects.create_user("0711111111", PASSWORD, full_name="Wanjiku Seller")
-
-
-@pytest.fixture
-def seller_client(seller):
-    return make_client(seller)
-
-
-@pytest.fixture
-def wholesaler(seller):
-    return services.register_wholesaler(
-        seller, business_name="Kisumu Wholesale", contact_phone="0711000000",
-        location_text="Kisumu",
-    )  # fmt: skip
-
-
-@pytest.fixture
-def verified(wholesaler, admin_user):
-    return services.verify_wholesaler(wholesaler_id=wholesaler.pk, actor=admin_user, note="ok")
-
-
-@pytest.fixture
-def rival_user():
-    return User.objects.create_user("0744444444", PASSWORD, full_name="Rival Seller")
-
-
-@pytest.fixture
-def rival(rival_user, admin_user):
-    w = services.register_wholesaler(
-        rival_user, business_name="Rival Traders", contact_phone="0744000000"
-    )
-    return services.verify_wholesaler(wholesaler_id=w.pk, actor=admin_user)
-
-
 def W(w, suffix=""):
     return f"/api/v1/wholesalers/{w.pk}/{suffix}"
 

@@ -179,6 +179,12 @@ def _require_can_publish(wholesaler: Wholesaler) -> None:
         raise SupplierNotVerified()
 
 
+def require_can_trade(wholesaler: Wholesaler) -> None:
+    """Taking on NEW commitments (publishing offers, confirming orders) needs a wholesaler in
+    good standing. Winding down existing ones (reject, cancel, dispatch) does not."""
+    _require_can_publish(wholesaler)
+
+
 def _resolve_product_and_unit(product_id, unit_id):
     try:
         product = Product.objects.get(pk=product_id, is_active=True, owner_shop__isnull=True)
@@ -351,12 +357,19 @@ def replace_tiers(*, wholesaler: Wholesaler, offer_id, actor, tiers) -> Supplier
 
 
 # ------------------------------------------------------------------ pricing
-def effective_unit_price(offer: SupplierOffer, quantity: Decimal, at=None) -> Decimal:
-    """Unit price for `quantity` offer-units: the cheapest tier that applies, else the base price."""
+def price_for(offer: SupplierOffer, quantity: Decimal, at=None) -> tuple[Decimal, Decimal | None]:
+    """(unit price, minimum quantity of the tier applied or None) for `quantity` offer-units:
+    the cheapest tier that applies, else the base price."""
     at = at or timezone.now()
     applicable = offer.tiers.filter(minimum_quantity__lte=quantity).filter(
         Q(valid_from__isnull=True) | Q(valid_from__lte=at),
         Q(valid_until__isnull=True) | Q(valid_until__gt=at),
     )
     best = applicable.order_by("unit_price").first()
-    return best.unit_price if best else offer.price_per_unit
+    if best:
+        return best.unit_price, best.minimum_quantity
+    return offer.price_per_unit, None
+
+
+def effective_unit_price(offer: SupplierOffer, quantity: Decimal, at=None) -> Decimal:
+    return price_for(offer, quantity, at)[0]
