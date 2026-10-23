@@ -182,8 +182,8 @@ A delivery can be partial. Represent received quantities and shortages explicitl
 **GroupParticipant**
 - `id`, `group_order_id`, `shop_id`
 - `quantity_base`, `status`
-- `joined_at`, `confirmed_at`
-- optional generated customer-order reference
+- `joined_at`
+- once confirmed (active participants only): frozen `goods_total` and `delivery_share`, and `order_id` (the generated ordinary order, one-to-one)
 
 Enforce one active commitment per shop per group using an appropriate uniqueness strategy. Updates must be validated and aggregate totals updated atomically. Cached committed quantity must be reconcilable to active participant commitments.
 

@@ -180,6 +180,19 @@ class GroupCancelView(ShopScoped, APIView):
         return Response(self.output(group_id, membership.shop))
 
 
+class GroupCostBreakdownView(ShopScoped, APIView):
+    """Any member of a shop that can see the group. Once the wholesaler has confirmed it: the
+    group's totals and this shop's own line and delivery share. Never other shops' lines."""
+
+    def get(self, request, shop_id, group_id):
+        shop = self.membership().shop
+        self.settle(group_id)
+        group = _groups(shop).filter(pk=group_id).first()
+        if group is None:
+            raise NotFound("Group not found.")
+        return Response(services.cost_breakdown(group, shop=shop))
+
+
 class GroupCloseView(ShopScoped, APIView):
     """Organising shop's owner/manager. Close an open group early, once the target is met.
     Freezes the quantities (no more joining, changing or withdrawing) and sends it to the
@@ -241,6 +254,17 @@ class WholesalerGroupDetailView(WholesalerScoped, APIView):
         wholesaler = self.membership().wholesaler
         services.settle_expired(Q(pk=group_id, wholesaler=wholesaler))
         return Response(self.output(group_id, wholesaler))
+
+
+class WholesalerGroupCostBreakdownView(WholesalerScoped, APIView):
+    """Any member of the wholesaler. Group totals plus one row per generated order."""
+
+    def get(self, request, wholesaler_id, group_id):
+        wholesaler = self.membership().wholesaler
+        group = _wholesaler_groups(wholesaler).filter(pk=group_id).first()
+        if group is None:
+            raise NotFound("Group not found.")
+        return Response(services.cost_breakdown(group))
 
 
 class _SupplierGroupAction(WholesalerScoped, APIView):

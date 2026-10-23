@@ -2,6 +2,10 @@
 
 Rules (decisions.md, 2026-10-23):
 * A group is for ONE live wholesaler offer. Commitments are quantities in that offer's unit.
+* Confirming generates ONE ordinary, already-confirmed order per active participant, in the same
+  transaction (all or nothing). Every shop pays the same unit price; the delivery fee is split by
+  base-unit quantity, largest remainder (costs.allocate_delivery_fee). The group's goods total is
+  the SUM of the shops' rounded line totals, so shares and totals always reconcile exactly.
 * Joining, changing and withdrawing are free while the group is open and before its deadline.
   Nothing is binding yet; the binding point is the wholesaler's confirmation (confirm_group).
 * At the deadline an open group becomes `closed` (target met, quantities frozen) or `failed`.
@@ -30,11 +34,13 @@ from apps.audit import services as audit
 from apps.common.exceptions import DomainError, StateConflict
 from apps.common.money import money
 from apps.inventory.units import to_base
+from apps.orders import services as order_services
 from apps.shops.models import ShopMembership
 from apps.suppliers import services as supplier_services
 from apps.suppliers.models import SupplierOffer, WholesalerMembership
 from apps.sync.idempotency import to_jsonable
 
+from .costs import allocate_delivery_fee
 from .models import GroupOrder, GroupParticipant
 
 Status = GroupOrder.Status
@@ -508,7 +514,34 @@ def confirm_group(
             code="fee_above_cap",
         )
 
-    goods = money(price * group.committed_quantity)
+    # Frozen per-shop costs, then one ordinary order each. Any failure rolls the whole
+    # confirmation back, so a group is never confirmed with only some of its orders.
+    participants = list(
+        group.participants.filter(status=GroupParticipant.Status.ACTIVE)
+        .select_related("shop")
+        .order_by("joined_at", "shop_id")
+    )
+    shares = allocate_delivery_fee(fee, [(p.pk, p.quantity_base) for p in participants])
+    goods = Decimal("0")
+    order_ids = []
+    for p in participants:
+        p.goods_total = money(p.quantity * price)
+        p.delivery_share = shares[p.pk]
+        goods += p.goods_total
+        order = order_services.create_group_order(
+            shop=p.shop, placed_by=p.committed_by, wholesaler=wholesaler, offer=group.offer,
+            quantity=p.quantity, quantity_base=p.quantity_base, unit_price=price,
+            line_total=p.goods_total, delivery_fee=p.delivery_share,
+            delivery_method=group.delivery_method, delivery_point=group.delivery_point,
+            confirmed_at=now, confirmed_by=actor, group_id=group.pk, product_name=group.product_name_snapshot,
+            unit_name=group.unit_name_snapshot,
+            unit_base_quantity=group.unit_base_quantity_snapshot,
+            list_price=group.list_price_snapshot, currency=group.currency,
+        )  # fmt: skip
+        p.order = order
+        p.save(update_fields=["goods_total", "delivery_share", "order", "updated_at"])
+        order_ids.append(order.pk)
+
     group.status = Status.CONFIRMED
     group.confirmed_unit_price, group.confirmed_delivery_fee = price, fee
     group.confirmed_at, group.confirmed_by = now, actor
@@ -536,7 +569,7 @@ def confirm_group(
         "group.confirmed", group, actor, group.organiser_shop,
         {"after": {
             "unit_price": price, "delivery_fee": fee, "quantity": group.committed_quantity,
-            "goods_total": goods,
+            "goods_total": goods, "orders_created": len(order_ids), "order_ids": order_ids,
         }},
     )  # fmt: skip
     return group
@@ -556,6 +589,83 @@ def decline_group(*, wholesaler, actor, group_id, reason) -> GroupOrder:
     group.save(update_fields=["status", "status_note", "updated_at"])
     _record("group.declined", group, actor, group.organiser_shop, {"reason": reason})
     return group
+
+
+# ------------------------------------------------------------------ costs (5c)
+def _money_str(value) -> str:
+    return f"{Decimal(str(value)):.2f}"
+
+
+def _qty_str(value) -> str:
+    return f"{Decimal(str(value)):.6f}"
+
+
+def _row(p: GroupParticipant, unit_price: Decimal) -> dict:
+    return {
+        "order_id": p.order_id, "order_status": p.order.status,
+        "quantity": _qty_str(p.quantity), "quantity_base": _qty_str(p.quantity_base),
+        "unit_price": _money_str(unit_price), "goods_total": _money_str(p.goods_total),
+        "delivery_share": _money_str(p.delivery_share),
+        "total": _money_str(p.goods_total + p.delivery_share),
+    }  # fmt: skip
+
+
+def cost_breakdown(group: GroupOrder, *, shop=None) -> dict:
+    """The frozen costs of a CONFIRMED group.
+
+    A shop gets the group totals plus ONLY its own line (`mine`); it never learns what the
+    other shops committed or pay. The wholesaler (shop=None) also gets one row per generated
+    order: it already sees those shops through the orders it must fulfil.
+    """
+    if group.status != Status.CONFIRMED:
+        raise StateConflict(
+            "Costs are final only once the wholesaler confirms the group.", code="not_confirmed"
+        )
+    terms = group.terms_snapshot
+    unit_price = Decimal(group.confirmed_unit_price)
+    data = {
+        "group_id": group.pk, "status": group.status, "currency": group.currency,
+        "unit_price": _money_str(unit_price),
+        "tier_minimum_quantity": (
+            None if terms.get("tier_minimum_quantity") is None
+            else _qty_str(terms["tier_minimum_quantity"])
+        ),
+        "quantity": _qty_str(terms["quantity"]), "quantity_base": _qty_str(terms["quantity_base"]),
+        "participant_count": terms["participant_count"],
+        "goods_total": _money_str(terms["goods_total"]),
+        "delivery_fee": _money_str(terms["delivery_fee"]), "total": _money_str(terms["total"]),
+        "delivery_method": group.delivery_method, "delivery_point": group.delivery_point,
+        "confirmed_at": group.confirmed_at,
+    }  # fmt: skip
+    rows = (
+        group.participants.filter(status=GroupParticipant.Status.ACTIVE, order__isnull=False)
+        .select_related("order", "shop")
+        .order_by("joined_at", "shop_id")
+    )
+    if shop is not None:
+        mine = next((p for p in rows if p.shop_id == shop.pk), None)
+        data["mine"] = _row(mine, unit_price) if mine else None
+    else:
+        data["orders"] = [{"shop": {"name": p.shop.name}, **_row(p, unit_price)} for p in rows]
+    return data
+
+
+def reconcile_costs(group: GroupOrder) -> dict:
+    """Sums of the per-shop allocations and generated orders, to compare with the group's frozen
+    totals. Used by tests and ops checks; every pair must be equal for a confirmed group."""
+    rows = list(
+        group.participants.filter(status=GroupParticipant.Status.ACTIVE).select_related("order")
+    )
+    return {
+        "quantity": sum((p.quantity for p in rows), Decimal("0")),
+        "quantity_base": sum((p.quantity_base for p in rows), Decimal("0")),
+        "goods_total": sum((p.goods_total or 0 for p in rows), Decimal("0")),
+        "delivery_fee": sum((p.delivery_share or 0 for p in rows), Decimal("0")),
+        "order_subtotals": sum((p.order.subtotal for p in rows if p.order), Decimal("0")),
+        "order_delivery_fees": sum((p.order.delivery_fee for p in rows if p.order), Decimal("0")),
+        "order_totals": sum((p.order.total_amount for p in rows if p.order), Decimal("0")),
+        "orders": sum(1 for p in rows if p.order),
+    }
 
 
 def close_expired_groups() -> int:

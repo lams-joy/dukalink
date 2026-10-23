@@ -92,6 +92,7 @@ Record a stock change offline, restart the app, reconnect, sync, retry and verif
 Compare offers, place an order, confirm supplier terms, receive a partial delivery and record a discrepancy.
 
 ### Scenario E: group order
+*(automated: `tests/test_group_costs.py::test_recruitment_to_receipt`)*
 Create a group, add multiple shops, reach the target, confirm supplier terms, generate per-shop orders, allocate costs and record delivery.
 
 ## 8. Manual pilot checks

@@ -126,6 +126,12 @@ class GroupOrderSerializer(serializers.ModelSerializer):
                     "quantity": f"{p.quantity:.6f}",
                     "quantity_base": f"{p.quantity_base:.6f}",
                     "joined_at": p.joined_at,
+                    # filled in once the wholesaler confirms the group
+                    "order_id": p.order_id,
+                    "goods_total": None if p.goods_total is None else f"{p.goods_total:.2f}",
+                    "delivery_share": (
+                        None if p.delivery_share is None else f"{p.delivery_share:.2f}"
+                    ),
                 }
         return None
 

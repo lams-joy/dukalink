@@ -167,6 +167,44 @@ def place_order(
     return order
 
 
+def create_group_order(
+    *, shop, placed_by, wholesaler, offer, quantity, quantity_base, unit_price, line_total,
+    delivery_fee, delivery_method, delivery_point, confirmed_at, confirmed_by, group_id,
+    product_name, unit_name, unit_base_quantity, list_price, currency,
+) -> Order:  # fmt: skip
+    """One shop's order generated when a wholesaler confirms a group. The terms were agreed at
+    confirmation, so the order starts `confirmed` and continues as any other (dispatch, receive).
+    Call inside the confirming transaction. `delivery_point` holds the address, or the
+    collection point when the method is collection."""
+    order = Order.objects.create(
+        shop=shop, wholesaler=wholesaler, currency=currency, subtotal=line_total,
+        delivery_fee=delivery_fee, total_amount=line_total + delivery_fee,
+        status=Status.CONFIRMED, delivery_method=delivery_method,
+        delivery_address=delivery_point, note=f"Group order {group_id}"[:255],
+        placed_by=placed_by, submitted_at=confirmed_at, confirmed_at=confirmed_at,
+    )  # fmt: skip
+    OrderItem.objects.create(
+        order=order, offer=offer, product=offer.product, product_unit=offer.product_unit,
+        product_name_snapshot=product_name, unit_name_snapshot=unit_name,
+        unit_base_quantity_snapshot=unit_base_quantity, quantity=quantity,
+        quantity_base=quantity_base, list_price_snapshot=list_price,
+        unit_price_snapshot=unit_price, line_total=line_total,
+    )  # fmt: skip
+    source = {"source": "group_order", "group_order_id": group_id}
+    _record(
+        "order.placed", order, placed_by,
+        {**source, "after": {
+            "subtotal": line_total, "delivery_method": delivery_method,
+            "items": [{"offer_id": offer.pk, "quantity": quantity, "unit_price": unit_price}],
+        }},
+    )  # fmt: skip
+    _record(
+        "order.confirmed", order, confirmed_by,
+        {**source, "after": {"delivery_fee": delivery_fee, "total_amount": order.total_amount}},
+    )  # fmt: skip
+    return order
+
+
 def _check_orderable(offer: SupplierOffer, quantity: Decimal) -> None:
     if offer.availability == SupplierOffer.Availability.OUT_OF_STOCK:
         raise DomainError(

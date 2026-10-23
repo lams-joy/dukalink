@@ -13,6 +13,7 @@ from rest_framework.exceptions import APIException
 from apps.audit.models import AuditEvent
 from apps.groupbuying import services
 from apps.groupbuying.models import GroupOrder, GroupParticipant
+from apps.orders.models import Order
 from apps.suppliers import services as supplier_services
 
 pytestmark = [
@@ -177,6 +178,8 @@ def test_confirm_racing_a_decline_has_one_winner(closed, verified, seller):
     assert kinds(outcomes) == ["error", "ok"], outcomes
     closed.refresh_from_db()
     assert closed.status in (GroupOrder.Status.CONFIRMED, GroupOrder.Status.DECLINED)
+    # orders exist exactly when the group was confirmed, never after a decline
+    assert Order.objects.count() == (2 if closed.status == GroupOrder.Status.CONFIRMED else 0)
     # the loser never left half-written terms behind (the DB constraint also guarantees it)
     assert (closed.confirmed_unit_price is not None) == (
         closed.status == GroupOrder.Status.CONFIRMED
@@ -190,6 +193,7 @@ def test_two_confirms_at_once_confirm_once(closed, verified, seller):
     outcomes = race(confirm, confirm)
     assert kinds(outcomes) == ["error", "ok"], outcomes
     assert AuditEvent.objects.filter(action="group.confirmed").count() == 1
+    assert Order.objects.count() == 2  # one per participating shop, never doubled
 
 
 def test_many_readers_settling_an_expired_group_settle_it_once(full_group):

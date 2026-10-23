@@ -4,7 +4,7 @@ Base path: `/api/v1/`
 Format: JSON  
 Authentication: secure session or token-based authentication; final mechanism to be selected before implementation.
 
-This is the initial endpoint catalogue. Request/response schemas and OpenAPI definitions should be added alongside each implementation.
+This is the endpoint catalogue. The OpenAPI schema is generated from the code (`/api/schema/`, browsable at `/api/docs/`); this file is the human-readable summary of behaviour and rules.
 
 ## 1. Authentication and shops
 
@@ -73,6 +73,7 @@ Shop side (`/shops/{shop_id}/group-orders/...`; owner/manager act, staff only vi
 | POST | `/group-orders/{id}/withdraw/` | Withdraw while open |
 | POST | `/group-orders/{id}/cancel/` | Organiser cancels while open (`reason` required) |
 | POST | `/group-orders/{id}/close/` | Organiser closes early once the target is met |
+| GET | `/group-orders/{id}/cost-breakdown/` | Once confirmed: group totals plus this shop's own line (`mine`); never other shops' lines |
 
 Wholesaler side (`/wholesalers/{wholesaler_id}/group-orders/...`; owner/manager decide, staff only view; totals only, never which shops took part):
 
@@ -82,12 +83,13 @@ Wholesaler side (`/wholesalers/{wholesaler_id}/group-orders/...`; owner/manager 
 | GET | `/group-orders/{id}/` | Group detail |
 | POST | `/group-orders/{id}/confirm/` | **Binding point.** Accept the full committed quantity. Optional `unit_price` (at most the tier price for the committed total) and `delivery_fee` (at most the published estimate, default 0) |
 | POST | `/group-orders/{id}/decline/` | Turn a closed group down (`reason` required). Final |
+| GET | `/group-orders/{id}/cost-breakdown/` | Once confirmed: group totals plus one row per generated order |
 
 Lifecycle: `open` -> `closed` (deadline with target met, or organiser closes) -> `confirmed` or `declined`; `open` -> `failed` (deadline, target missed) or `cancelled`. Only `confirmed` is binding. Expired groups are settled lazily on the next read or write; `python manage.py close_expired_groups` settles the rest (run it from cron, e.g. every 5 minutes).
 
 Errors specific to groups: `group_not_open`, `invalid_transition` (409); `target_not_reached`, `price_above_cap`, `fee_above_cap`, `exceeds_availability`, `reason_required` (400).
 
-Planned (5c): `GET /group-orders/{id}/cost-breakdown/` and per-shop order generation on confirmation.
+Confirming generates one ordinary order per active participant, already `confirmed`, in the same transaction (all or nothing). They appear in the normal order lists and continue through dispatch and receipt. Each carries the same unit price and that shop's delivery share. For a collection group the order's `delivery_address` holds the collection point. The cost breakdown reads frozen figures, so later offer edits or order cancellations never rewrite what was agreed (the live `order_status` is shown alongside). Cost breakdown before confirmation returns 409 `not_confirmed`.
 
 ## 5. Notifications and administration
 

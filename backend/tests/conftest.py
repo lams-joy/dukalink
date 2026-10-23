@@ -141,7 +141,7 @@ def offer(verified, seller, sugar):
 
 @pytest.fixture
 def third_user():
-    return User.objects.create_user("0744444444", PASSWORD, full_name="Faith Third")
+    return User.objects.create_user("0766666666", PASSWORD, full_name="Faith Third")
 
 
 @pytest.fixture
