@@ -1,0 +1,23 @@
+# DukaLink Glossary
+
+- **Base unit:** Canonical unit in which a product's stock is stored, such as kg, litre or piece.
+- **Cached stock balance:** Current quantity stored for fast reads and updated with each valid movement; reconciled against the ledger.
+- **Collection point:** Agreed location where several shops collect a pooled delivery.
+- **Customer order:** A specific shop's order to a wholesaler, including agreed item and cost snapshots.
+- **Group order:** A coordinated buying opportunity shared by multiple shops.
+- **Group commitment:** Quantity a shop intends to buy in a particular group, subject to the group's confirmation rules.
+- **Idempotency key:** Unique client-supplied operation identifier that prevents retries from applying the same operation twice.
+- **Inventory batch:** A specific received lot, optionally tracked with an expiry date.
+- **Inventory ledger / stock movement:** Append-only history of quantity changes.
+- **Low-stock threshold:** Shop-defined quantity at or below which a restocking alert is triggered.
+- **Offer:** Supplier's listing of a product/package, price, minimum order and availability terms.
+- **Opening stock:** Quantity physically present when a product is first added to a shop's inventory.
+- **Product:** Shared description of a good, independent of a particular shop's stock or a supplier's offer.
+- **Product unit:** A unit/package such as a piece, carton or 50 kg sack, mapped to a product's base unit.
+- **Purchase receipt:** Record of goods actually received; distinct from an order that is still pending.
+- **Shop product:** A particular product tracked in one shop's inventory.
+- **Stock adjustment:** Audited correction to the recorded balance, often following a physical count.
+- **Supplier confirmation:** Explicit wholesaler acceptance of availability and final terms.
+- **Supplier offer snapshot:** Copy of agreed terms retained on a confirmed order so later catalogue edits do not alter history.
+- **Sync operation:** Offline action sent to the server with a stable unique operation ID.
+- **Unit conversion factor:** Number of base units represented by one product unit.
