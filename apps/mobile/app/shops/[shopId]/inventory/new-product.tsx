@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Text } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Screen, Field, Btn, ErrorText, Gap, useAction } from "../../../../src/ui";
+import { Text, Screen, Field, Btn, ErrorText, Gap, useAction } from "../../../../src/ui";
 import { api, uuid } from "../../../../src/api";
 
 type U = { unit_name: string; base_quantity: string };

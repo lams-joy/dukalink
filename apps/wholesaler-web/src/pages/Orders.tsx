@@ -21,7 +21,7 @@ export function Orders() {
       <Status loading={loading} error={error} /><ErrorText error={act.error} />
       {data?.map((o) => (
         <article key={o.id}>
-          <h3>{o.shop.name} - {o.status}{o.group_order_id ? " (from a group buy)" : ""}</h3>
+          <h3>{o.shop.name} <span className={`pill ${o.status === "received" ? "good" : ["cancelled", "rejected"].includes(o.status) ? "bad" : "info"}`}>{o.status}</span>{o.group_order_id ? <span className="pill">group buy</span> : null}</h3>
           <p>Submitted {new Date(o.submitted_at).toLocaleString()} | {o.delivery_method}{o.delivery_address ? `: ${o.delivery_address}` : ""} | Contact {o.contact_phone || "-"}</p>
           <ul>{o.items.map((i: any) => <li key={i.id}>{i.quantity} x {i.product_name} ({i.unit_name}) at {i.unit_price} = {i.line_total}{i.shortage ? ` - SHORT ${i.shortage}` : ""}</li>)}</ul>
           <p>Total {o.currency} {o.total_amount} (delivery {o.delivery_fee}){o.note ? ` | Note: ${o.note}` : ""}</p>

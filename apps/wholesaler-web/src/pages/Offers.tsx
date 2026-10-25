@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, apiList } from "../api";
+import { gradientFor, Icon } from "../icons";
 import { ErrorText, Field, Page, Status, useAction, useLoad } from "../ui";
 
 const AVAIL = ["in_stock", "limited", "out_of_stock"];
@@ -10,15 +11,16 @@ export function Offers() {
   const { data, error, loading } = useLoad<any[]>(`/wholesalers/${wid}/offers/`, true);
   return (
     <Page title="Offers and prices">
-      <p><Link to={`/w/${wid}`}>Back</Link> | <Link to={`/w/${wid}/offers/new`}>+ New offer</Link></p>
+      <p> <Link to={`/w/${wid}/offers/new`} className="cta"><Icon name="plus" /> New offer</Link></p>
       <Status loading={loading} error={error} />
-      <table><thead><tr><th>Product</th><th>Unit</th><th>Price</th><th>Min order</th><th>Availability</th><th>Live</th><th></th></tr></thead>
-        <tbody>{data?.map((o) => (
-          <tr key={o.id}>
-            <td>{o.product.name}</td><td>{o.unit.unit_name}</td><td>{o.currency} {o.price_per_unit}</td>
-            <td>{o.minimum_order_quantity}</td><td>{o.availability}</td><td>{o.is_active ? "yes" : "no"}</td>
-            <td><Link to={`/w/${wid}/offers/${o.id}`}>Edit</Link></td>
-          </tr>))}</tbody></table>
+      <div className="grid">{data?.map((o) => (
+        <Link key={o.id} to={`/w/${wid}/offers/${o.id}`} className="product">
+          <div className="thumb" style={{ background: gradientFor(o.product.name) }}><span>{o.product.name.charAt(0)}</span></div>
+          <h4>{o.product.name}</h4>
+          <p className="muted">per {o.unit.unit_name} - min {o.minimum_order_quantity}</p>
+          <p className="price">{o.currency} {Number(o.price_per_unit).toLocaleString()}</p>
+          <p><span className={`pill ${o.availability === "in_stock" ? "good" : o.availability === "limited" ? "warn" : "bad"}`}>{o.availability.replace("_", " ")}</span>{!o.is_active ? <span className="pill">hidden</span> : null}{o.tiers?.length ? <span className="pill info">{o.tiers.length} bulk tiers</span> : null}</p>
+        </Link>))}</div>
       {!loading && data?.length === 0 ? <p>No offers yet.</p> : null}
     </Page>
   );

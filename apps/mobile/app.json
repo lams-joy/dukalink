@@ -5,7 +5,14 @@
     "scheme": "dukalink",
     "version": "0.1.0",
     "orientation": "portrait",
-    "web": { "bundler": "metro", "output": "single" },
-    "plugins": ["expo-router", "expo-secure-store"]
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font"
+    ]
   }
 }

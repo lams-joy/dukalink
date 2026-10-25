@@ -1,5 +1,5 @@
-import { Text, View } from "react-native";
-import { Screen, Loading, useLoad } from "../../../../src/ui";
+import { View } from "react-native";
+import { Text, Screen, Loading, useLoad } from "../../../../src/ui";
 
 export default function Wholesalers() {
   const { data, error, loading } = useLoad<any[]>("/marketplace/wholesalers/", true);

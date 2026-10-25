@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { Screen, Field, Btn, ErrorText, Gap, Loading, useLoad, useAction } from "../../../src/ui";
+import { Text, Screen, Field, Btn, ErrorText, Gap, Loading, useLoad, useAction } from "../../../src/ui";
 import { api } from "../../../src/api";
 
 export default function Settings() {

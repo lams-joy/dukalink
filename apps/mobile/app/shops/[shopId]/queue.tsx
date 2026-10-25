@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { Screen, Btn, ErrorText, Gap, useAction } from "../../../src/ui";
+import { Text, Screen, Btn, ErrorText, Gap, useAction } from "../../../src/ui";
 import { QueuedOp, discard, flush, queueFor } from "../../../src/offline";
 
 export default function Queue() {

@@ -1,6 +1,5 @@
-import { Text } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { Screen, Loading, useLoad } from "../../../src/ui";
+import { Text, Screen, Loading, useLoad } from "../../../src/ui";
 
 export default function Alerts() {
   const { shopId } = useLocalSearchParams<{ shopId: string }>();

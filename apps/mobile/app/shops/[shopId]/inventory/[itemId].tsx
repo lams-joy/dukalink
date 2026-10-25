@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Text } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { Screen, Field, Btn, ErrorText, Gap, Loading, useLoad, useAction } from "../../../../src/ui";
+import { Text, Screen, Field, Btn, ErrorText, Gap, Loading, useLoad, useAction } from "../../../../src/ui";
 import { api } from "../../../../src/api";
 import { sendOp } from "../../../../src/offline";
 

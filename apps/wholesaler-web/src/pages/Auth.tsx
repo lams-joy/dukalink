@@ -4,13 +4,18 @@ import { useAuth } from "../auth";
 import { api } from "../api";
 import { ErrorText, Field, Page, useAction } from "../ui";
 
+function Brand({ sub }: { sub: string }) {
+  return <div className="brand-hero"><span className="mark big">D</span><h1>DukaLink</h1><p>{sub}</p></div>;
+}
+
 export function Login() {
   const { user, signIn } = useAuth();
   const [phone, setPhone] = useState(""); const [pw, setPw] = useState("");
   const { busy, error, run } = useAction();
   if (user) return <Navigate to="/" replace />;
   return (
-    <Page title="Wholesaler sign in">
+    <><Brand sub="Sell to shops across your region" />
+    <Page title="Sign in">
       <form onSubmit={(e) => { e.preventDefault(); run(() => signIn(phone, pw)); }}>
         <Field label="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
         <Field label="Password" type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
@@ -18,7 +23,7 @@ export function Login() {
         <button disabled={busy}>Sign in</button>
       </form>
       <p><Link to="/register">Create an account</Link></p>
-    </Page>
+    </Page></>
   );
 }
 
@@ -31,7 +36,8 @@ export function Register() {
     await signIn(phone_number, password); nav("/");
   });
   return (
-    <Page title="Create account">
+    <><Brand sub="Reach shops that order in bulk" />
+    <Page title="Create your account">
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <Field label="Full name" value={full_name} onChange={(e) => setName(e.target.value)} />
         <Field label="Phone number" value={phone_number} onChange={(e) => setPhone(e.target.value)} />
@@ -40,6 +46,6 @@ export function Register() {
         <button disabled={busy}>Register</button>
       </form>
       <p><Link to="/login">Back to sign in</Link></p>
-    </Page>
+    </Page></>
   );
 }
