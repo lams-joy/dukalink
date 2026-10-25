@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, clearTokens, hasSession, onSignedOut, saveTokens } from "./api";
 
-type User = { id: string; phone_number: string; full_name: string };
+type User = { id: string; phone_number: string; full_name: string; is_staff: boolean };
 type Ctx = { ready: boolean; user: User | null; signIn(p: string, pw: string): Promise<void>; signOut(): void };
 const C = createContext<Ctx>(null as any);
 export const useAuth = () => useContext(C);

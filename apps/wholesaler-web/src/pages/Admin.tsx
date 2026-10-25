@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { api } from "../api";
 import { ErrorText, Page, Status, useAction, useLoad } from "../ui";
 
@@ -13,7 +12,6 @@ export function Admin() {
   };
   return (
     <Page title="Supplier verification (platform staff)">
-      <p><Link to="/">Back</Link></p>
       <Status loading={loading} error={error} /><ErrorText error={act.error} />
       <ul>{data?.map((w) => (
         <li key={w.id}>{w.business_name} - {w.location_text} - {w.contact_phone} - registered {new Date(w.created_at).toLocaleDateString()}{" "}

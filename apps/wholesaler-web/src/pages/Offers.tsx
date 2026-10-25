@@ -86,6 +86,7 @@ export function EditOffer() {
           <ErrorText error={a.error} /><button disabled={a.busy}>Save</button>
         </form>
         <h3>Volume prices</h3>
+        <p className="muted">Buying more should cost less per unit. Offers with volume prices are the only ones shops can pool into group buys. Each tier must start above the minimum order and be cheaper than the base price.</p>
         {tiers.map((x, i) => (
           <div key={i}>
             <input placeholder="from quantity" value={x.minimum_quantity} onChange={(e) => setTier(i, "minimum_quantity", e.target.value)} />

@@ -27,7 +27,7 @@ export default function Offer() {
     <Screen>
       <Loading loading={loading} error={error} />
       {o ? <>
-        <Glass pad={18} radius={24}>
+        <Glass pad={18} radius={16}>
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: t.space.md }}>
             <Avatar name={o.product?.name ?? "?"} size={64} />
             <View style={{ marginLeft: t.space.md, flex: 1 }}>
@@ -46,7 +46,7 @@ export default function Offer() {
 
         {o.tiers?.length ? <>
           <Section>Buy more, pay less</Section>
-          <Glass pad={18} radius={24}>{o.tiers.map((x: any, i: number) => (
+          <Glass pad={18} radius={16}>{o.tiers.map((x: any, i: number) => (
             <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderTopWidth: i ? 1 : 0, borderTopColor: t.color.border }}>
               <Text style={{ marginBottom: 0 }}>{x.minimum_quantity}+ {o.unit?.unit_name}</Text>
               <Text style={{ fontWeight: "800", marginBottom: 0 }}>{o.currency} {Number(x.unit_price).toLocaleString()} each</Text>
@@ -54,7 +54,7 @@ export default function Offer() {
         </> : null}
 
         <Section>Order this</Section>
-        <Glass pad={18} radius={24}>
+        <Glass pad={18} radius={16}>
           <Field label={`How many (${o.unit?.unit_name ?? "units"})`} value={qty} onChangeText={setQty} keyboardType="numeric" />
           <Btn kind="plain" title="See my price" onPress={getQuote} disabled={!qty} /><ErrorText error={q.error} />
           {quote ? <View style={{ backgroundColor: t.color.primarySoft, borderRadius: t.radius, padding: t.space.md, marginBottom: t.space.md }}>

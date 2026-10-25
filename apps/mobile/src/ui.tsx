@@ -74,7 +74,7 @@ export const Field = ({ label, ...p }: { label: string } & TextInputProps) => {
       <Text style={{ fontSize: 12, fontWeight: "700", color: t.color.muted, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 6 }}>{label}</Text>
       <TextInput autoCapitalize="none" placeholderTextColor={t.color.faint}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-        style={[{ backgroundColor: "rgba(255,255,255,0.72)", borderColor: focus ? t.color.primary : "rgba(255,255,255,0.95)", borderWidth: 1.5, borderRadius: 14,
+        style={[{ backgroundColor: "rgba(255,255,255,0.72)", borderColor: focus ? t.color.primary : "rgba(255,255,255,0.95)", borderWidth: 1.5, borderRadius: 10,
           paddingVertical: 13, paddingHorizontal: 16, fontSize: 16, color: t.color.ink, fontFamily: t.family as any,
           boxShadow: focus ? "0 0 0 4px rgba(16,185,129,0.18)" : "0 1px 2px rgba(20,60,48,0.06)" }, { outlineWidth: 0 } as any]} {...p} />
     </View>
@@ -92,7 +92,7 @@ export const Btn = ({ title, onPress, disabled, kind = "primary", icon }: { titl
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button"
       style={({ pressed }) => ({ opacity: disabled ? 0.45 : 1, transform: [{ scale: pressed ? 0.98 : 1 }], marginBottom: t.space.sm,
-        borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: primary ? "rgba(255,255,255,0.35)" : t.color.border,
+        borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: primary ? "rgba(255,255,255,0.35)" : t.color.border,
         backgroundColor: primary ? undefined : "rgba(255,255,255,0.6)",
         boxShadow: primary ? "0 8px 22px rgba(14,159,110,0.38), inset 0 1px 0 rgba(255,255,255,0.35)" : "0 2px 8px rgba(20,60,48,0.08)" })}>
       {primary ? <LinearGradient colors={t.gradient.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>{body}</LinearGradient> : body}
@@ -104,7 +104,7 @@ export const Btn = ({ title, onPress, disabled, kind = "primary", icon }: { titl
 export const Nav = ({ href, children, icon }: { href: Href; children: React.ReactNode; icon?: IconName }) => (
   <Link href={href} asChild>
     <Pressable style={({ pressed }) => ({ marginBottom: t.space.sm, transform: [{ scale: pressed ? 0.99 : 1 }] })}>
-      <Glass pad={14} radius={18}>
+      <Glass pad={14} radius={12}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           {icon ? <View style={{ marginRight: 12 }}><Icon name={icon} size={20} color={t.color.primary} /></View> : null}
           <Text style={{ flex: 1, fontWeight: "600", marginBottom: 0 }}>{children}</Text>
@@ -117,7 +117,7 @@ export const Nav = ({ href, children, icon }: { href: Href; children: React.Reac
 
 export const ErrorText = ({ error }: { error?: string | null }) =>
   error ? (
-    <View style={{ backgroundColor: t.color.dangerBg, borderRadius: 14, padding: t.space.md, marginBottom: t.space.md, flexDirection: "row", alignItems: "center" }}>
+    <View style={{ backgroundColor: t.color.dangerBg, borderRadius: 10, padding: t.space.md, marginBottom: t.space.md, flexDirection: "row", alignItems: "center" }}>
       <Icon name="alert-circle" size={18} color={t.color.danger} />
       <Text style={{ color: t.color.danger, marginBottom: 0, marginLeft: 8, flex: 1 }}>{error}</Text>
     </View>
@@ -166,7 +166,7 @@ const duo = (name: string) => DUOS[[...(name || "?")].reduce((a, c) => a + c.cha
 
 export const Avatar = ({ name, size = 46 }: { name: string; size?: number }) => (
   <LinearGradient colors={duo(name)} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-    style={{ width: size, height: size, borderRadius: size * 0.32, alignItems: "center", justifyContent: "center", boxShadow: "0 6px 14px rgba(20,60,48,0.22)" }}>
+    style={{ width: size, height: size, borderRadius: size * 0.24, alignItems: "center", justifyContent: "center", boxShadow: "0 6px 14px rgba(20,60,48,0.22)" }}>
     <Text style={{ color: "#fff", fontWeight: "800", fontSize: size * 0.42, lineHeight: size * 0.5, marginBottom: 0 }}>{(name || "?").trim().charAt(0).toUpperCase()}</Text>
   </LinearGradient>
 );
@@ -194,7 +194,7 @@ export const ProgressBar = ({ value }: { value: number }) => (
 export const Stat = ({ label, value, tone, icon }: { label: string; value: React.ReactNode; tone?: "bad" | "warn"; icon?: IconName }) => {
   const c = tone === "bad" ? t.color.danger : tone === "warn" ? t.color.warn : t.color.ink;
   return (
-    <Glass pad={16} radius={20}>
+    <Glass pad={16} radius={14}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
         <Text style={{ color: t.color.muted, fontSize: 12, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase", flex: 1 }}>{label}</Text>
         {icon ? <Icon name={icon} size={16} color={t.color.faint} /> : null}
@@ -207,9 +207,9 @@ export const Stat = ({ label, value, tone, icon }: { label: string; value: React
 export const Tile = ({ href, icon, label, badge }: { href: Href; icon: IconName; label: string; badge?: string | number }) => (
   <Link href={href} asChild>
     <Pressable style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.97 : 1 }] })}>
-      <Glass pad={16} radius={20}>
+      <Glass pad={16} radius={14}>
         <LinearGradient colors={duo(label)} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={{ width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 12, boxShadow: "0 6px 14px rgba(20,60,48,0.2)" }}>
+          style={{ width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 12, boxShadow: "0 6px 14px rgba(20,60,48,0.2)" }}>
           <Icon name={icon} size={20} color="#fff" />
         </LinearGradient>
         <Text style={{ fontWeight: "700", marginBottom: 0, letterSpacing: -0.2 }}>{label}</Text>
@@ -223,7 +223,7 @@ export const ProductCard = ({ href, name, subtitle, price, priceNote, pills, foo
   { href: Href; name: string; subtitle?: string; price?: string; priceNote?: string; pills?: React.ReactNode; footer?: React.ReactNode }) => (
   <Link href={href} asChild>
     <Pressable style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.985 : 1 }] })}>
-      <Glass pad={0} radius={22}>
+      <Glass pad={0} radius={14}>
         <LinearGradient colors={duo(name)} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 96, justifyContent: "flex-end", padding: 14, overflow: "hidden" }}>
           <View style={{ position: "absolute", right: -26, top: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: "rgba(255,255,255,0.18)" }} />
           <View style={{ position: "absolute", right: 40, bottom: -50, width: 90, height: 90, borderRadius: 45, backgroundColor: "rgba(255,255,255,0.12)" }} />
@@ -245,7 +245,7 @@ export const ProductCard = ({ href, name, subtitle, price, priceNote, pills, foo
 export const Banner = ({ href, tone = "warn", icon, children }: { href?: Href; tone?: "warn" | "info"; icon?: IconName; children: React.ReactNode }) => {
   const c = tone === "warn" ? t.color.warn : t.color.info;
   const inner = (
-    <View style={{ backgroundColor: tone === "warn" ? t.color.warnBg : t.color.infoBg, borderRadius: 16, padding: t.space.md, marginBottom: t.space.md, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: t.color.border }}>
+    <View style={{ backgroundColor: tone === "warn" ? t.color.warnBg : t.color.infoBg, borderRadius: 12, padding: t.space.md, marginBottom: t.space.md, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: t.color.border }}>
       <Icon name={icon ?? (tone === "warn" ? "alert-triangle" : "cloud-off")} size={18} color={c} />
       <Text style={{ color: c, fontWeight: "600", marginBottom: 0, marginLeft: 10, flex: 1 }}>{children}</Text>
       {href ? <Icon name="chevron-right" size={18} color={c} /> : null}
@@ -266,13 +266,13 @@ export function BottomNav({ shopId }: { shopId: string }) {
   ];
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 14, alignItems: "center" }}>
-      <Glass pad={6} radius={30} strong style={{ width: "92%", maxWidth: 520 }}>
+      <Glass pad={6} radius={20} strong style={{ width: "92%", maxWidth: 520 }}>
         <View style={{ flexDirection: "row" }}>
           {items.map(([label, icon, href, active]) => {
             const on = active(path);
             return (
               <Link key={label} href={href as Href} asChild>
-                <Pressable style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 24, backgroundColor: on ? t.color.primarySoft : "transparent" }}>
+                <Pressable style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 14, backgroundColor: on ? t.color.primarySoft : "transparent" }}>
                   <Icon name={icon} size={20} color={on ? t.color.primaryDark : t.color.muted} />
                   <Text style={{ fontSize: 11, marginTop: 3, marginBottom: 0, lineHeight: 14, fontWeight: on ? "800" : "600", color: on ? t.color.primaryDark : t.color.muted }}>{label}</Text>
                 </Pressable>

@@ -13,7 +13,7 @@ function TopBar() {
   const atRoot = segments.length <= 1 && segments[0] === "shops";
   return (
     <View style={{ alignItems: "center", paddingHorizontal: 12, paddingTop: 12 }}>
-      <Glass pad={8} radius={26} strong style={{ width: "100%", maxWidth: t.maxWidth }}>
+      <Glass pad={8} radius={18} strong style={{ width: "100%", maxWidth: t.maxWidth }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/shops"))} disabled={atRoot} accessibilityLabel="Back"
             style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: atRoot ? "transparent" : "rgba(255,255,255,0.7)" }}>

@@ -22,7 +22,7 @@ export default function ShopHome() {
       <Loading loading={shop.loading || sum.loading} error={shop.error ?? sum.error} />
 
       <LinearGradient colors={t.gradient.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={{ borderRadius: 28, padding: 24, marginBottom: t.space.lg, overflow: "hidden", boxShadow: "0 18px 40px rgba(14,100,110,0.35)" }}>
+        style={{ borderRadius: 18, padding: 24, marginBottom: t.space.lg, overflow: "hidden", boxShadow: "0 18px 40px rgba(14,100,110,0.35)" }}>
         <View style={{ position: "absolute", right: -50, top: -60, width: 220, height: 220, borderRadius: 110, backgroundColor: "rgba(255,255,255,0.14)" }} />
         <View style={{ position: "absolute", right: 60, bottom: -90, width: 180, height: 180, borderRadius: 90, backgroundColor: "rgba(255,255,255,0.09)" }} />
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
@@ -37,11 +37,11 @@ export default function ShopHome() {
         </> : null}
         <View style={{ flexDirection: "row", marginTop: 18 }}>
           <Link href={`${base}/sell`} asChild>
-            <Pressable style={{ backgroundColor: "#fff", borderRadius: 16, paddingVertical: 12, paddingHorizontal: 18, marginRight: 10, flexDirection: "row", alignItems: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.18)" }}>
+            <Pressable style={{ backgroundColor: "#fff", borderRadius: 12, paddingVertical: 12, paddingHorizontal: 18, marginRight: 10, flexDirection: "row", alignItems: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.18)" }}>
               <Icon name="plus" size={18} color={t.color.primaryDark} /><Text style={{ color: t.color.primaryDark, fontWeight: "800", marginBottom: 0, marginLeft: 6 }}>New sale</Text>
             </Pressable></Link>
           <Link href={`${base}/receive`} asChild>
-            <Pressable style={{ borderColor: "rgba(255,255,255,0.6)", borderWidth: 1, backgroundColor: "rgba(255,255,255,0.16)", borderRadius: 16, paddingVertical: 12, paddingHorizontal: 18, flexDirection: "row", alignItems: "center" }}>
+            <Pressable style={{ borderColor: "rgba(255,255,255,0.6)", borderWidth: 1, backgroundColor: "rgba(255,255,255,0.16)", borderRadius: 12, paddingVertical: 12, paddingHorizontal: 18, flexDirection: "row", alignItems: "center" }}>
               <Icon name="download" size={18} color="#fff" /><Text style={{ color: "#fff", fontWeight: "700", marginBottom: 0, marginLeft: 6 }}>Goods in</Text>
             </Pressable></Link>
         </View>
@@ -77,7 +77,7 @@ export default function ShopHome() {
 
       {s?.top_selling?.length ? <>
         <Section>Best sellers</Section>
-        <Glass pad={8} radius={22}>
+        <Glass pad={8} radius={14}>
           {s.top_selling.map((x: any, i: number) => (
             <View key={x.shop_product_id} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderTopWidth: i ? 1 : 0, borderTopColor: t.color.line }}>
               <Text style={{ width: 26, color: t.color.faint, fontWeight: "800", marginBottom: 0 }}>{i + 1}</Text>

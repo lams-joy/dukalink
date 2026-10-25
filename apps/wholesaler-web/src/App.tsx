@@ -9,6 +9,7 @@ import { Orders } from "./pages/Orders";
 import { Groups, GroupDetail } from "./pages/Groups";
 import { Settings } from "./pages/Settings";
 import { Admin } from "./pages/Admin";
+import { AdminCatalogue, AdminProduct, NewAdminProduct } from "./pages/AdminCatalogue";
 
 function Protected() {
   const { ready, user, signOut } = useAuth();
@@ -18,12 +19,27 @@ function Protected() {
     <>
       <header>
         <Link to="/" className="brand"><span className="mark">D</span> DukaLink <em>Wholesale</em></Link>
-        <Link to="/admin" className="hbtn"><Icon name="shield" /> Admin</Link>
+        {user.is_staff ? <Link to="/admin" className="hbtn"><Icon name="shield" /> Platform admin</Link> : null}
         <span className="chip">{user.full_name}</span>
         <button className="icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out"><Icon name="logout" /></button>
       </header>
       <main><Outlet /></main>
     </>
+  );
+}
+
+function AdminLayout() {
+  const { user } = useAuth();
+  if (!user?.is_staff) return <Navigate to="/" replace />;   // non-staff never see admin pages
+  return (
+    <div className="shell">
+      <nav className="sidebar">
+        <NavLink to="/admin" end className={({ isActive }) => (isActive ? "active" : "")}><Icon name="shield" /> Verify wholesalers</NavLink>
+        <NavLink to="/admin/catalogue" className={({ isActive }) => (isActive ? "active" : "")}><Icon name="package" /> Product catalogue</NavLink>
+        <Link to="/" className="switch"><Icon name="repeat" /> Back to my businesses</Link>
+      </nav>
+      <div className="content"><Outlet /></div>
+    </div>
   );
 }
 
@@ -55,7 +71,12 @@ export function App() {
       <Route element={<Protected />}>
         <Route index element={<Businesses />} />
         <Route path="new" element={<NewBusiness />} />
-        <Route path="admin" element={<Admin />} />
+        <Route path="admin" element={<AdminLayout />}>
+          <Route index element={<Admin />} />
+          <Route path="catalogue" element={<AdminCatalogue />} />
+          <Route path="catalogue/new" element={<NewAdminProduct />} />
+          <Route path="catalogue/:pid" element={<AdminProduct />} />
+        </Route>
         <Route path="w/:wid" element={<BusinessLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="offers" element={<Offers />} />
