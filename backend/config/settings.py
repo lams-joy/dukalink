@@ -32,6 +32,9 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is off.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
+# Full origins (scheme + host) that may POST to Django's cookie-based pages, i.e. /admin/ behind HTTPS.
+# The JSON API uses bearer tokens and does not need this.
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 
 # Browser clients (the Expo web build, the wholesaler portal) run on another origin than the API.
 # Auth is a bearer token in a header, not a cookie, so only the allowed origins need listing.

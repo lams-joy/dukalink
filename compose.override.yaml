@@ -1,0 +1,30 @@
+# Frontends for development. Docker Compose reads this file automatically next to compose.yaml,
+# so plain `docker compose up` starts the database, the backend and both web apps.
+services:
+  app:
+    image: node:22
+    working_dir: /app
+    command: sh -c "npm install --no-audit --no-fund && npx expo start --web --port 8081"
+    environment:
+      BROWSER: none
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_API_URL: http://localhost:8000/api/v1
+    volumes:
+      - ./apps/mobile:/app
+      - app_node_modules:/app/node_modules
+    ports: ["8081:8081"]
+
+  portal:
+    image: node:22
+    working_dir: /app
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    volumes:
+      - ./apps/wholesaler-web:/app
+      - portal_node_modules:/app/node_modules
+    ports: ["5173:5173"]
+
+volumes:
+  app_node_modules:
+  portal_node_modules:

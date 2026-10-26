@@ -23,6 +23,7 @@ services:
       DJANGO_DEBUG: "true"
       DJANGO_SECRET_KEY: dev-only-not-a-secret
       POSTGRES_HOST: db
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1${LAN_IP:+,$LAN_IP}"  # export LAN_IP=192.168.x.y to test from a phone
     volumes:
       - ./backend:/app
     ports:
