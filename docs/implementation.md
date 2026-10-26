@@ -10,11 +10,12 @@ Build a working vertical slice in each phase. Keep changes small, testable and r
 |---|---|
 | 0 Foundation | Done (Django, Postgres, Docker, CI, OpenAPI) |
 | 1 Accounts, shops, catalogue | Done |
-| 2 Inventory engine (backend) | Done; mobile SQLite/offline queue not started |
-| 3 Mobile inventory experience | Not started |
-| 4 Wholesaler catalogue and orders (backend) | Done; wholesaler web portal not started |
-| 5 Group buying (backend) | Done (5a-5d); mobile and wholesaler web screens not started |
-| 6 Pilot hardening | Not started |
+| 2 Inventory engine (backend) | Done. The device-side store is an AsyncStorage operation queue, not the SQLite store the plan described |
+| 3 Mobile inventory experience | Done for writes (home, inventory, sell, receive, counts, alerts, movements, queue, settings). No offline read cache |
+| 4 Wholesaler catalogue and orders | Done (backend and wholesaler portal); catalogue admin and supplier verification screens included |
+| 5 Group buying | Done (5a-5f backend, mobile and portal screens). OpenAPI annotation covers orders and group buying only |
+| 6 Pilot hardening | Partly: deploy scripts and backup script exist. Monitoring, restore drill, notifications, data export and phone verification are not done (see `next-steps.md`) |
+| 7 Post-pilot additions | Not started (see `next-steps.md` section 3 and `probable-features.md`) |
 
 Backend checks: `ruff check .`, `makemigrations --check`, and `pytest` on PostgreSQL 16 (race tests are skipped on SQLite).
 

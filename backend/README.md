@@ -13,15 +13,14 @@ the server is running.
 
 ```bash
 cp ../.env.example ../.env            # edit if needed
-docker compose up -d db               # from the repo root; PostgreSQL on :5432
+docker compose up -d db               # from the repo root; PostgreSQL on localhost:5434 (the .env.example default)
 
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 set -a; source ../.env; set +a        # Django reads real environment variables only
 
-python manage.py makemigrations accounts shops catalog inventory sync   # FIRST TIME ONLY
-python manage.py migrate
-python manage.py seed_demo_catalog
+python manage.py migrate              # migrations are committed; do not run makemigrations unless you change a model
+python manage.py seed_catalog         # loads the bundled duka product list (idempotent)
 python manage.py createsuperuser      # phone number + full name + password
 python manage.py runserver
 ```
@@ -29,15 +28,16 @@ python manage.py runserver
 * API base: `http://localhost:8000/api/v1/` · OpenAPI docs: `http://localhost:8000/api/docs/`
 * Admin: `http://localhost:8000/admin/`
 
-`makemigrations` must be run (and the migration files committed) before the first `migrate`,
-so the custom user model is part of the initial migration. Do not skip this.
+Migrations for every app are committed. CI fails if a model change has no migration, so after
+editing a model run `python manage.py makemigrations` and commit the result.
 
 ## Tests
 
 ```bash
 pytest                                  # against PostgreSQL (includes the concurrency test)
 DB_ENGINE=sqlite pytest                 # quick run; the concurrency test is skipped
-ruff check --fix . && ruff format .     # run once, then keep clean
+ruff check .                            # CI enforces this
+# ruff format is not enforced yet (many files are unformatted); format only files you touch
 ```
 
 ## Conventions (Phase 0)
@@ -103,8 +103,5 @@ Batch/expiry and expiry alerts, notifications, payments.
 ## Known limitations
 
 * **OpenAPI schema is partly incomplete.** The order and group-buying endpoints are fully described (`tests/test_schema.py` guards them). Inventory, suppliers, catalogue and sync views have no declared request or response serializers, so `manage.py spectacular --validate` still reports errors for them and skips those operations. Annotate them with `extend_schema` before a client is generated from the schema.
-* **Reversed sales still appear in reports.** Reversing a movement corrects stock, but the
-  `Sale`/`PurchaseReceipt` header and its totals are not marked as voided, so the summary report
-  still counts them. Needs a voided/reversed status on the receipt/sale before pilot use.
 * **Alerts rank by absolute shortfall**, which is not comparable across units (kg vs pieces).
 * Shop and catalogue lists are plain/paginated inconsistently (shops: plain array).

@@ -2,7 +2,15 @@
 
 DukaLink is a mobile-first inventory and wholesale-ordering platform for Kenyan duka owners. It combines practical stock tracking and restocking reminders with a wholesaler marketplace and coordinated group buying.
 
-## Documentation index
+## Start here (handover documentation)
+
+- [Getting started](getting-started.md) — run the whole system locally, smoke test, tests, troubleshooting.
+- [Configuration and files](configuration.md) — every environment variable, which files are needed, what is not in Git.
+- [Implemented features](features.md) — what works today, by role and module.
+- [Next steps](next-steps.md) — hardening, known limitations, prioritised feature backlog, how to add a feature.
+- [Deployment and operations](deployment.md) — server setup, HTTPS front door, updates, backups, problems already met.
+
+## Planning and design documentation
 
 - [Product plan](plan.md) — goals, scope, user journeys, rollout and success metrics.
 - [Product and technical documentation](documentation.md) — requirements, architecture, business rules and API conventions.
@@ -46,4 +54,4 @@ Do not build lending, an in-app wallet/escrow, advanced accounting, AI forecasti
 
 The probable-features document is a discovery backlog, not a commitment to implement every listed feature.
 
-These documents began as the planning baseline. The backend is now being built against them, so where a document and the code disagree, the code and `decisions.md` win; update the document. See `implementation.md` for current progress.
+The planning documents (`plan.md`, `documentation.md`, `structure.md`, `database.md`, `api.md`, `testing.md`) began as the baseline before any code existed. The product is now built against them, so where a document and the code disagree, **the code, `decisions.md` and `features.md` win**; fix the document. Known drift: `structure.md` shows a proposed layout (for example `packages/`, `admin-web/`, per-feature mobile folders) that was not adopted; the real layout is in the root `README.md`. See `implementation.md` for phase progress.
