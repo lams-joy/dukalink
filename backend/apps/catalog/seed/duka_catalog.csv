@@ -1,0 +1,48 @@
+name,brand,category,base_unit,units
+Sugar,,Staples,kg,50 kg sack=50|2 kg packet=2|1 kg packet=1
+Maize flour,,Staples,kg,24 x 2 kg carton=48|2 kg packet=2|1 kg packet=1
+Wheat flour,,Staples,kg,50 kg sack=50|24 x 2 kg carton=48|2 kg packet=2
+Cooking oil,,Staples,litre,20 litre jerrycan=20|5 litre jerrycan=5|1 litre bottle=1|500 ml bottle=0.5
+Cooking fat,,Staples,kg,carton of 20 x 500 g=10|500 g tub=0.5
+Rice,,Staples,kg,25 kg sack=25|2 kg packet=2|1 kg packet=1
+Beans,,Staples,kg,90 kg sack=90|1 kg packet=1
+Green grams,,Staples,kg,50 kg sack=50|1 kg packet=1
+Dry maize,,Staples,kg,90 kg sack=90|2 kg tin=2
+Salt,,Staples,kg,carton of 20 x 500 g=10|1 kg packet=1|500 g packet=0.5
+Spaghetti,,Staples,kg,carton of 20 x 400 g=8|400 g packet=0.4
+Tea leaves,,Staples,kg,carton of 50 x 100 g=5|500 g packet=0.5|250 g packet=0.25|100 g packet=0.1
+Tomato paste,,Staples,piece,carton of 24=24
+Fresh milk,,Dairy and fresh,litre,1 litre packet=1|500 ml packet=0.5
+Long life milk,,Dairy and fresh,litre,carton of 12 x 1 litre=12|carton of 12 x 500 ml=6|500 ml packet=0.5
+Eggs,,Dairy and fresh,piece,tray of 30=30|dozen=12
+Bread,,Dairy and fresh,piece,crate of 20=20
+Margarine,,Dairy and fresh,kg,carton of 12 x 500 g=6|500 g tub=0.5|250 g tub=0.25
+Soda 500 ml,,Drinks,piece,crate of 24=24
+Bottled water 500 ml,,Drinks,piece,carton of 24=24
+Bottled water 1.5 litre,,Drinks,piece,carton of 12=12
+Tea bags,,Drinks,piece,box of 100=100|box of 50=50
+Juice 1 litre,,Drinks,piece,carton of 12=12
+Bar soap,,Household,piece,carton of 24=24
+Laundry powder,,Household,kg,carton of 24 x 500 g=12|1 kg packet=1|500 g packet=0.5|90 g sachet=0.09
+Liquid bleach,,Household,litre,5 litre jerrycan=5|1 litre bottle=1|500 ml bottle=0.5
+Dish washing liquid,,Household,litre,5 litre jerrycan=5|750 ml bottle=0.75
+Toilet paper,,Household,piece,bale of 40 rolls=40|pack of 10 rolls=10
+Matchboxes,,Household,piece,packet of 10=10
+Candles,,Household,piece,packet of 6=6
+Paraffin,,Household,litre,20 litre jerrycan=20|1 litre bottle=1
+Insecticide spray,,Household,piece,carton of 12=12
+Polythene bags,,Household,kg,10 kg bale=10|1 kg packet=1
+Toothpaste,,Personal care,piece,carton of 12=12
+Toothbrush,,Personal care,piece,packet of 12=12
+Petroleum jelly,,Personal care,piece,carton of 12=12
+Sanitary pads,,Personal care,piece,carton of 24 packets=24
+Razor blades,,Personal care,piece,box of 100=100
+Body lotion,,Personal care,piece,carton of 12=12
+Biscuits,,Snacks,piece,carton of 12 packets=12
+Sweets,,Snacks,piece,jar of 100=100|packet of 50=50
+Crisps,,Snacks,piece,carton of 24=24
+Groundnuts,,Snacks,kg,1 kg packet=1|25 kg sack=25
+Baby diapers,,Baby,piece,pack of 40=40|pack of 20=20
+Baby wipes,,Baby,piece,pack of 80=80
+Exercise books,,Stationery,piece,packet of 12=12
+Ballpoint pens,,Stationery,piece,box of 50=50

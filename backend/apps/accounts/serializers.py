@@ -13,6 +13,14 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class MeSerializer(UserSerializer):
+    """The signed-in user's own profile; includes whether they are platform staff."""
+
+    class Meta(UserSerializer.Meta):
+        fields = (*UserSerializer.Meta.fields, "is_staff")
+        read_only_fields = fields
+
+
 class RegisterSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20)
     full_name = serializers.CharField(max_length=150)
