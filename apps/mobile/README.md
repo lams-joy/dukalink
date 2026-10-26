@@ -1,8 +1,8 @@
 # DukaLink app (Expo)
 
-One codebase for the browser and for Expo Go on a phone. **Unstyled on purpose**: plain React Native
-components only, so the CSS/theme work can happen without touching logic. Restyle the shared pieces in
-`src/ui.tsx` first, then each screen.
+One codebase for the browser and for Expo Go on a phone. Styled with a "liquid glass" theme:
+shared building blocks are in `src/ui.tsx` and the colours/spacing in `src/theme.ts`. Change those first,
+then individual screens.
 
 ## Run it
 ```bash
@@ -20,7 +20,7 @@ If Expo complains about a version mismatch, run `npx expo install --fix`.
    (for example `localhost,127.0.0.1,192.168.1.20`).
 2. `EXPO_PUBLIC_API_URL=http://192.168.1.20:8000/api/v1 npx expo start`
 
-The browser build needs the CORS change (`3a-backend-cors.patch`), already applied to the backend.
+The browser build calls the API from another origin, so the backend must allow it via `CORS_ALLOWED_ORIGINS` (already the default in DEBUG).
 
 ## Screens (Expo Router, `app/`)
 | Route | What it does |
