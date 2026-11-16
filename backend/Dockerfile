@@ -10,5 +10,8 @@ RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml
 
 COPY . .
 
+# Build Django admin/static assets into the immutable image for WhiteNoise.
+RUN DJANGO_DEBUG=false DJANGO_SECRET_KEY=build-only python manage.py collectstatic --noinput
+
 EXPOSE 8000
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]

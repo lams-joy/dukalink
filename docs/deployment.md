@@ -5,6 +5,21 @@ How to run DukaLink on a server, put it on the internet, and keep it healthy. Th
 (Cloudflare Tunnel, Caddy, or router port forwarding) that provides HTTPS. This is a pilot-grade
 setup; see [`next-steps.md`](next-steps.md) for what to harden before many users depend on it.
 
+## Render deployment
+
+The repository root contains [`render.yaml`](../render.yaml), a Render Blueprint for the production stack:
+
+- Django API as a Docker web service, with health checks and migrations run before each deploy.
+- Managed PostgreSQL, connected using Render's private database URL; database access from outside Render is disabled.
+- Expo shop web app and Vite wholesaler portal as static sites, both configured to call the API over HTTPS.
+- The product catalogue is seeded once on the API's first successful deployment. Create the first platform admin from the Render Shell with `python manage.py createsuperuser`.
+
+To deploy, push this repository to GitHub, choose **New + → Blueprint** in Render, connect the repository, and apply the Blueprint. The API, both static sites, database and generated Django secret are created together. The Blueprint uses the Singapore region for the API and database. Static sites use Render's global CDN.
+
+The Blueprint expects the default Render hostnames `dukalink-api.onrender.com`, `dukalink-shop.onrender.com`, and `dukalink-wholesale.onrender.com`. If those names are unavailable or you add custom domains, update the API URL in both static-site `EXPO_PUBLIC_API_URL` / `VITE_API_URL` settings and update `CORS_ALLOWED_ORIGINS` and `DJANGO_CSRF_TRUSTED_ORIGINS` on the API. Keep the API and database in the same region. Render's pre-deploy migration command requires a paid web-service plan; the Blueprint sets the API to `starter` so migrations finish before new instances start.
+
+Render Postgres is durable, but production operations still need an independent backup and restore plan. Configure and periodically rehearse backups in the Render dashboard before storing critical business data. The `close_expired_groups` command should also be scheduled as a Render Cron Job (or another scheduler) every five minutes; groups are additionally settled lazily when read.
+
 ## 1. How the pieces fit
 
 ```

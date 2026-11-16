@@ -5,6 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
+import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,6 +33,9 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is off.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
+render_hostname = env("RENDER_EXTERNAL_HOSTNAME")
+if render_hostname and render_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_hostname)
 # Full origins (scheme + host) that may POST to Django's cookie-based pages, i.e. /admin/ behind HTTPS.
 # The JSON API uses bearer tokens and does not need this.
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
@@ -69,6 +73,7 @@ MIDDLEWARE = [
     "apps.common.middleware.RequestIDMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # before CommonMiddleware
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -102,6 +107,14 @@ if env("DB_ENGINE", "postgres") == "sqlite":
     DATABASES = {
         "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}
     }
+elif env("DATABASE_URL"):
+    DATABASES = {
+        "default": dj_database_url.config(
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=not DEBUG,
+        )
+    }
 else:
     DATABASES = {
         "default": {
@@ -130,8 +143,15 @@ TIME_ZONE = "UTC"  # store UTC; shops carry their own display timezone
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+if not DEBUG:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        },
+    }
 
 # --- API conventions (Phase 0) ---------------------------------------------
 # * Errors:      {"error": {"code", "message", "details", "request_id"}}

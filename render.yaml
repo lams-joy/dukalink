@@ -1,0 +1,77 @@
+databases:
+  - name: dukalink-db
+    plan: 0.5c-1g
+    region: singapore
+    databaseName: dukalink
+    user: dukalink
+    ipAllowList: []
+
+services:
+  - type: web
+    name: dukalink-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    region: singapore
+    healthCheckPath: /api/v1/health/
+    preDeployCommand: python manage.py migrate --noinput
+    initialDeployHook: python manage.py seed_catalog
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: dukalink-api.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dukalink-db
+          property: connectionString
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://dukalink-shop.onrender.com,https://dukalink-wholesale.onrender.com
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: https://dukalink-api.onrender.com
+      - key: AUTH_THROTTLE_RATE
+        value: 10/min
+      - key: LOG_LEVEL
+        value: INFO
+      - key: SUPPLIER_VERIFICATION_REQUIRED
+        value: "true"
+      - key: ALLOW_NEGATIVE_STOCK
+        value: "false"
+      - key: DEFAULT_PHONE_COUNTRY_CODE
+        value: "254"
+      - key: DEFAULT_CURRENCY
+        value: KES
+
+  - type: web
+    name: dukalink-shop
+    runtime: static
+    rootDir: apps/mobile
+    buildCommand: npm ci && npx expo export --platform web
+    staticPublishPath: apps/mobile/dist
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        value: https://dukalink-api.onrender.com/api/v1
+
+  - type: web
+    name: dukalink-wholesale
+    runtime: static
+    rootDir: apps/wholesaler-web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: apps/wholesaler-web/dist
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://dukalink-api.onrender.com/api/v1
