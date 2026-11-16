@@ -11,8 +11,8 @@ services:
     name: dukalink-api
     runtime: docker
     rootDir: backend
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     plan: starter
     region: singapore
     healthCheckPath: /api/v1/health/
@@ -51,7 +51,7 @@ services:
     runtime: static
     rootDir: apps/mobile
     buildCommand: npm ci && npx expo export --platform web
-    staticPublishPath: apps/mobile/dist
+    staticPublishPath: dist
     pullRequestPreviewsEnabled: false
     routes:
       - type: rewrite
@@ -66,7 +66,7 @@ services:
     runtime: static
     rootDir: apps/wholesaler-web
     buildCommand: npm ci && npm run build
-    staticPublishPath: apps/wholesaler-web/dist
+    staticPublishPath: dist
     pullRequestPreviewsEnabled: false
     routes:
       - type: rewrite
